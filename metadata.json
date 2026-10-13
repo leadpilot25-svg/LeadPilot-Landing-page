@@ -1,0 +1,6 @@
+{
+  "name": "Local Trade Website Generator",
+  "description": "Master config-driven website template generator for local trade businesses in the US.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
