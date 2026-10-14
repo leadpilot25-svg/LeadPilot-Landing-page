@@ -92,6 +92,7 @@ export function formatPhoneForWhatsApp(phoneStr: string, fallbackCountryCode: st
 
   const cleanCountryCode = extractDigits(fallbackCountryCode) || '91';
 
+<<<<<<< HEAD
   // If cleanCountryCode is 91 (India) and digits is 11 digits starting with '1' and 2nd digit is 6-9,
   // it was corrupted by the legacy '1' + 10-digit bug (e.g. 18484888584 -> 918484888584)
   if (cleanCountryCode === '91' && digits.length === 11 && digits.startsWith('1') && /^[6-9]/.test(digits.slice(1))) {
@@ -99,6 +100,19 @@ export function formatPhoneForWhatsApp(phoneStr: string, fallbackCountryCode: st
   }
 
   // If 10 digits (standard Indian / domestic mobile number without country code)
+=======
+  // If number was entered with leading '+', it already includes an explicit country code
+  if (trimmed.startsWith('+')) {
+    return digits;
+  }
+
+  // If starts with '00' (international prefix)
+  if (trimmed.startsWith('00') && digits.length > 10) {
+    return digits.slice(2);
+  }
+
+  // If 10 digits (standard Indian / US mobile number without country code)
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
   if (digits.length === 10) {
     return `${cleanCountryCode}${digits}`;
   }
@@ -113,6 +127,7 @@ export function formatPhoneForWhatsApp(phoneStr: string, fallbackCountryCode: st
     return digits;
   }
 
+<<<<<<< HEAD
   // If starts with '00' (international prefix)
   if (trimmed.startsWith('00') && digits.length > 10) {
     return digits.slice(2);
@@ -132,6 +147,14 @@ export function formatPhoneForWhatsApp(phoneStr: string, fallbackCountryCode: st
   }
 
   // Fallback: if already longer than 10, return digits
+=======
+  // If 11 digits and starts with 1 (USA with country code already)
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return digits;
+  }
+
+  // Fallback: if already longer than 10, likely already has country code
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
   return digits;
 }
 
@@ -142,6 +165,7 @@ export function formatPhoneForWhatsApp(phoneStr: string, fallbackCountryCode: st
 export function formatDisplayPhone(phoneStr: string, fallbackCountryCode: string = '91'): string {
   if (!phoneStr) return '';
   const trimmed = phoneStr.trim();
+<<<<<<< HEAD
 
   const cleanCc = extractDigits(fallbackCountryCode) || '91';
   let digits = extractDigits(trimmed);
@@ -154,6 +178,13 @@ export function formatDisplayPhone(phoneStr: string, fallbackCountryCode: string
 
   if (trimmed.startsWith('+')) return trimmed;
 
+=======
+  if (trimmed.startsWith('+')) return trimmed;
+
+  const digits = extractDigits(trimmed);
+  const cleanCc = extractDigits(fallbackCountryCode) || '91';
+
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
   if (digits.length === 10) {
     // Format as +91 84848 88584
     return `+${cleanCc} ${digits.slice(0, 5)} ${digits.slice(5)}`;
@@ -205,6 +236,7 @@ export function normalizeImportedPhone(rawVal: any, selectedCountryCode: string 
     return `+91 ${core.slice(0, 5)} ${core.slice(5)}`;
   }
 
+<<<<<<< HEAD
   // Recover legacy corrupted 1 prefix for Indian numbers
   if (cleanCc === '91' && digits.length === 11 && digits.startsWith('1') && /^[6-9]/.test(digits.slice(1))) {
     const core = digits.slice(1);
@@ -213,6 +245,10 @@ export function normalizeImportedPhone(rawVal: any, selectedCountryCode: string 
 
   // 11 digits starting with 1 (US numbers only when country code is US/1)
   if (cleanCc === '1' && digits.length === 11 && digits.startsWith('1')) {
+=======
+  // 11 digits starting with 1
+  if (digits.length === 11 && digits.startsWith('1')) {
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
     const core = digits.slice(1);
     return `+1 ${core.slice(0, 3)} ${core.slice(3, 6)} ${core.slice(6)}`;
   }

@@ -61,6 +61,7 @@ function doGet(e) {
 
     var leads = [];
     var requestedClientId = (e && e.parameter && e.parameter.clientId) ? e.parameter.clientId.toString().trim() : "";
+<<<<<<< HEAD
     var adminToken = (e && e.parameter && (e.parameter.token || e.parameter.auth)) ? e.parameter.token.toString().trim() : "";
 
     // BACKEND DATA ISOLATION: Require an explicit clientId to prevent cross-tenant data leaks.
@@ -80,6 +81,8 @@ function doGet(e) {
         message: "Unauthorized: Wildcard lead queries require master administrative authorization."
       });
     }
+=======
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
 
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
@@ -88,8 +91,13 @@ function doGet(e) {
 
       var rowClientId = (row[clientIdIdx] || "").toString().trim();
 
+<<<<<<< HEAD
       // Strict backend data isolation: Only return leads belonging to requestedClientId
       if (requestedClientId.toLowerCase() !== "all" && rowClientId.toLowerCase() !== requestedClientId.toLowerCase()) {
+=======
+      // Client ID filtering if specified and not "all"
+      if (requestedClientId && requestedClientId !== "all" && rowClientId !== requestedClientId) {
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
         continue;
       }
 

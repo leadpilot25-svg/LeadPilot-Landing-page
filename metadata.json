@@ -1,6 +1,11 @@
 {
+<<<<<<< HEAD
   "name": "LeadPilot - Client Landing & CRM Platform",
   "description": "Professional landing website, Google Business Profile optimisation, and client-isolated CRM lead management system.",
+=======
+  "name": "Local Trade Website Generator",
+  "description": "Master config-driven website template generator for local trade businesses in the US.",
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

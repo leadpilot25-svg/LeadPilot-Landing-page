@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
+<<<<<<< HEAD
     "build:landing": "cross-env VITE_APP_TARGET=landing vite build",
 "build:crm": "cross-env VITE_APP_TARGET=crm vite build",
+=======
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
@@ -26,14 +29,24 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+<<<<<<< HEAD
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "cross-env": "^10.1.0",
+=======
+    "@types/node": "^22.14.0",
+    "autoprefixer": "^10.4.21",
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
+<<<<<<< HEAD
     "vite": "^6.2.3"
+=======
+    "vite": "^6.2.3",
+    "@types/express": "^4.17.21"
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
   }
 }

@@ -7,6 +7,7 @@ import { ConfigEditorDrawer } from './components/ConfigEditorDrawer';
 import { LiveWebsitePreview } from './components/LiveWebsitePreview';
 import { LeadPilotDashboard } from './components/LeadPilotDashboard';
 import { CodeExporterModal } from './components/CodeExporterModal';
+<<<<<<< HEAD
 import { StandaloneLanding } from './components/StandaloneLanding';
 import { StandaloneCrm } from './components/StandaloneCrm';
 import {
@@ -17,6 +18,9 @@ import {
   CLIENT_ID_ENV,
 } from './config/appTarget';
 import { ArrowLeft, Monitor, Smartphone, ShieldCheck, Sparkles } from 'lucide-react';
+=======
+import { IS_CLIENT_DEPLOYMENT, DEPLOYMENT_APP_MODE, CLIENT_ID_ENV } from './config/appMode';
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
 
 const INITIAL_CLIENT_CONFIGS: Record<string, ClientConfig> = {
   'demo-tarot': JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
@@ -80,10 +84,15 @@ function getClientConfigForEnvClientId(envClientId: string): { key: string; conf
 }
 
 export default function App() {
+<<<<<<< HEAD
   const [activeTarget, setActiveTarget] = useState<AppTarget>(() => getAppTarget());
 
   const [clientConfigs, setClientConfigs] = useState<Record<string, ClientConfig>>(() => {
     if (IS_LANDING_DEPLOYMENT || IS_CRM_DEPLOYMENT) {
+=======
+  const [clientConfigs, setClientConfigs] = useState<Record<string, ClientConfig>>(() => {
+    if (IS_CLIENT_DEPLOYMENT) {
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
       const resolved = getClientConfigForEnvClientId(CLIENT_ID_ENV);
       return { [resolved.key]: resolved.config };
     }
@@ -102,14 +111,22 @@ export default function App() {
   });
 
   const [activePresetKey, setActivePresetKey] = useState<string>(() => {
+<<<<<<< HEAD
     if (IS_LANDING_DEPLOYMENT || IS_CRM_DEPLOYMENT) {
+=======
+    if (IS_CLIENT_DEPLOYMENT) {
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
       return getClientConfigForEnvClientId(CLIENT_ID_ENV).key;
     }
     return 'demo-tarot';
   });
 
   const [currentConfig, setCurrentConfig] = useState<ClientConfig>(() => {
+<<<<<<< HEAD
     if (IS_LANDING_DEPLOYMENT || IS_CRM_DEPLOYMENT) {
+=======
+    if (IS_CLIENT_DEPLOYMENT) {
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
       return getClientConfigForEnvClientId(CLIENT_ID_ENV).config;
     }
     return clientConfigs['demo-tarot'] || DEMO_CLIENT_CONFIG;
@@ -117,11 +134,32 @@ export default function App() {
 
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'preview' | 'leadpilot' | 'exporter'>('preview');
+<<<<<<< HEAD
   const [appMode, setAppMode] = useState<'development' | 'client'>('development');
 
   // Persist master client configs to localStorage in dev mode
   useEffect(() => {
     if (!IS_LANDING_DEPLOYMENT && !IS_CRM_DEPLOYMENT) {
+=======
+  const [appMode, setAppMode] = useState<'development' | 'client'>(DEPLOYMENT_APP_MODE);
+
+  useEffect(() => {
+    if (IS_CLIENT_DEPLOYMENT) {
+      const resolved = getClientConfigForEnvClientId(CLIENT_ID_ENV);
+      setAppMode('client');
+      setActivePresetKey(resolved.key);
+      setCurrentConfig(resolved.config);
+      setClientConfigs({ [resolved.key]: resolved.config });
+      if (viewMode === 'exporter') {
+        setViewMode('preview');
+      }
+    }
+  }, [viewMode]);
+
+  // Persist master client configs to localStorage in dev mode
+  useEffect(() => {
+    if (!IS_CLIENT_DEPLOYMENT) {
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
       try {
         localStorage.setItem('master_client_configs', JSON.stringify(clientConfigs));
       } catch {
@@ -131,12 +169,22 @@ export default function App() {
   }, [clientConfigs]);
 
   const handleSelectPreset = (presetKey: string) => {
+<<<<<<< HEAD
+=======
+    if (IS_CLIENT_DEPLOYMENT) return;
+
+    // 1. If presetKey matches an existing active client configuration
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
     if (clientConfigs[presetKey]) {
       setActivePresetKey(presetKey);
       setCurrentConfig(JSON.parse(JSON.stringify(clientConfigs[presetKey])));
       return;
     }
 
+<<<<<<< HEAD
+=======
+    // 2. If presetKey is an industry template (e.g. 'hvac', 'plumbing', 'roofing', etc.)
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
     if (INDUSTRY_PRESETS[presetKey]) {
       const template = INDUSTRY_PRESETS[presetKey];
       const newClientKey = `client-${presetKey}`;
@@ -165,6 +213,7 @@ export default function App() {
 
   const handleUpdateConfig = (newConfig: ClientConfig) => {
     setCurrentConfig(newConfig);
+<<<<<<< HEAD
     setClientConfigs((prev) => ({
       ...prev,
       [activePresetKey]: JSON.parse(JSON.stringify(newConfig)),
@@ -172,6 +221,18 @@ export default function App() {
   };
 
   const handleResetPreset = () => {
+=======
+    if (!IS_CLIENT_DEPLOYMENT) {
+      setClientConfigs((prev) => ({
+        ...prev,
+        [activePresetKey]: JSON.parse(JSON.stringify(newConfig)),
+      }));
+    }
+  };
+
+  const handleResetPreset = () => {
+    if (IS_CLIENT_DEPLOYMENT) return;
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
     const rawKey = activePresetKey.replace(/^client-/, '');
     const source = CLIENT_PRESETS[activePresetKey] || INDUSTRY_PRESETS[rawKey] || INDUSTRY_PRESETS[activePresetKey];
     if (source) {
@@ -185,12 +246,17 @@ export default function App() {
   };
 
   const handleSetAppMode = (mode: 'development' | 'client') => {
+<<<<<<< HEAD
+=======
+    if (IS_CLIENT_DEPLOYMENT) return;
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
     setAppMode(mode);
     if (mode === 'client' && viewMode === 'exporter') {
       setViewMode('leadpilot');
     }
   };
 
+<<<<<<< HEAD
   // --------------------------------------------------------------------------
   // 1. DEDICATED PUBLIC LANDING WEBSITE DEPLOYMENT
   // --------------------------------------------------------------------------
@@ -260,6 +326,8 @@ export default function App() {
   // --------------------------------------------------------------------------
   // 3. MASTER INTERNAL DEVELOPMENT SUITE
   // --------------------------------------------------------------------------
+=======
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
       {/* Top Controller Bar */}
@@ -273,9 +341,13 @@ export default function App() {
         setViewMode={setViewMode}
         appMode={appMode}
         setAppMode={handleSetAppMode}
+<<<<<<< HEAD
         isClientDeployment={false}
         targetOverride={activeTarget}
         setTargetOverride={setActiveTarget}
+=======
+        isClientDeployment={IS_CLIENT_DEPLOYMENT}
+>>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
       />
 
       {/* Main Mode Area */}
