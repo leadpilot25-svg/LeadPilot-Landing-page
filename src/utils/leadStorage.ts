@@ -3,7 +3,6 @@ import { LeadItem, LeadStatus, ContactMethod, LeadNote, LeadContactLog } from '.
 const STORAGE_KEY = 'leadpilot_leads_v1';
 
 /**
-<<<<<<< HEAD
  * Storage key helper scoped by Client ID for multi-tenant data isolation
  */
 export function getClientStorageKey(clientId?: string): string {
@@ -14,8 +13,6 @@ export function getClientStorageKey(clientId?: string): string {
 }
 
 /**
-=======
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
  * Deduplicate leads array to guarantee unique Lead IDs
  */
 export function deduplicateLeads(leads: LeadItem[]): LeadItem[] {
@@ -43,7 +40,6 @@ export function deduplicateLeads(leads: LeadItem[]): LeadItem[] {
 }
 
 /**
-<<<<<<< HEAD
  * Get stored leads from localStorage with client isolation
  * @param clientId Optional client ID filter. If provided, strictly returns leads for this client.
  */
@@ -75,17 +71,6 @@ export function getStoredLeads(clientId?: string): LeadItem[] {
     }
 
     return deduplicated;
-=======
- * Get all stored leads from localStorage (UI cache)
- */
-export function getStoredLeads(): LeadItem[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: LeadItem[] = JSON.parse(raw);
-    return deduplicateLeads(parsed);
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
   } catch (err) {
     console.error('Error reading LeadPilot leads from localStorage:', err);
     return [];
@@ -93,7 +78,6 @@ export function getStoredLeads(): LeadItem[] {
 }
 
 /**
-<<<<<<< HEAD
  * Save leads array to localStorage with client isolation
  * @param leads Array of leads to save
  * @param clientId Optional client ID for tenant-isolated storage
@@ -121,15 +105,6 @@ export function saveAllLeads(leads: LeadItem[], clientId?: string): void {
       }
     }
 
-=======
- * Save all leads array to localStorage (UI cache)
- */
-export function saveAllLeads(leads: LeadItem[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const cleanLeads = deduplicateLeads(leads);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanLeads));
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
     window.dispatchEvent(new Event('leadpilot_leads_updated'));
   } catch (err) {
     console.error('Error saving LeadPilot leads to localStorage:', err);
@@ -413,12 +388,8 @@ export async function saveLead(
   input: Partial<LeadItem> & { name: string; phone: string; service: string },
   endpointUrl?: string
 ): Promise<{ success: boolean; message: string; lead: LeadItem }> {
-<<<<<<< HEAD
   const clientScope = input.clientId || 'demo-tarot';
   const leads = getStoredLeads(clientScope);
-=======
-  const leads = getStoredLeads();
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
   
   // 1. Check if explicit ID matches an existing lead
   let existingIndex = input.id ? leads.findIndex((l) => l.id === input.id) : -1;
@@ -445,11 +416,7 @@ export async function saveLead(
       service: input.service || existing.service,
       details: input.details ? `${existing.details} | Update: ${input.details}` : existing.details,
       address: input.address || existing.address,
-<<<<<<< HEAD
       clientId: clientScope,
-=======
-      clientId: input.clientId || existing.clientId,
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
       businessName: input.businessName || existing.businessName,
       leadSource: input.leadSource || existing.leadSource,
       pageUrl: input.pageUrl || existing.pageUrl,
@@ -463,11 +430,7 @@ export async function saveLead(
     }
 
     leads[existingIndex] = updatedLead;
-<<<<<<< HEAD
     saveAllLeads(leads, clientScope);
-=======
-    saveAllLeads(leads);
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
 
     return { success: true, message: 'Existing lead record updated.', lead: updatedLead };
   }
@@ -479,11 +442,7 @@ export async function saveLead(
   const newLead: LeadItem = {
     id: newLeadId,
     timestamp: input.timestamp || nowIso,
-<<<<<<< HEAD
     clientId: clientScope,
-=======
-    clientId: input.clientId || 'client-default-01',
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
     businessName: input.businessName || 'Local Business',
     name: input.name.trim(),
     phone: input.phone.trim(),
@@ -491,11 +450,7 @@ export async function saveLead(
     service: input.service.trim(),
     details: input.details || 'No additional details provided.',
     address: input.address || '',
-<<<<<<< HEAD
     leadSource: input.leadSource || 'Google Business Profile / Local Search',
-=======
-    leadSource: input.leadSource || 'Google Search',
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
     pageUrl: input.pageUrl || '',
     status: (input.status as LeadStatus) || 'New',
     notes: input.notes || [],
@@ -514,11 +469,7 @@ export async function saveLead(
   }
 
   leads.unshift(newLead); // newest leads first
-<<<<<<< HEAD
   saveAllLeads(leads, clientScope);
-=======
-  saveAllLeads(leads);
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
 
   return { success: true, message: 'Lead created successfully.', lead: newLead };
 }
@@ -559,11 +510,7 @@ export async function updateLeadStatus(
   };
   leads[idx].notes = [autoNote, ...(leads[idx].notes || [])];
 
-<<<<<<< HEAD
   saveAllLeads(leads, targetLead.clientId);
-=======
-  saveAllLeads(leads);
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
 
   return { success: true, message: `Status updated to ${status}`, lead: leads[idx] };
 }
@@ -605,11 +552,7 @@ export async function addLeadNote(
   };
 
   leads[idx].notes = [newNote, ...(leads[idx].notes || [])];
-<<<<<<< HEAD
   saveAllLeads(leads, targetLead.clientId);
-=======
-  saveAllLeads(leads);
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
 
   return { success: true, message: 'Note added successfully', lead: leads[idx] };
 }
@@ -655,11 +598,7 @@ export async function scheduleLeadFollowUp(
   };
   leads[idx].notes = [autoNote, ...(leads[idx].notes || [])];
 
-<<<<<<< HEAD
   saveAllLeads(leads, targetLead.clientId);
-=======
-  saveAllLeads(leads);
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
 
   return { success: true, message: 'Follow-up scheduled successfully', lead: leads[idx] };
 }
@@ -719,11 +658,7 @@ export async function logLeadContact(
   };
   leads[idx].notes = [autoNote, ...(leads[idx].notes || [])];
 
-<<<<<<< HEAD
   saveAllLeads(leads, targetLead.clientId);
-=======
-  saveAllLeads(leads);
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
 
   return { success: true, message: `Logged ${method} contact`, lead: leads[idx] };
 }

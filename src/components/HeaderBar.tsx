@@ -2,12 +2,9 @@ import React from 'react';
 import { ClientConfig } from '../types';
 import { Wrench, SlidersHorizontal, Code2, Sparkles, Building2, Eye, ShieldAlert } from 'lucide-react';
 
-<<<<<<< HEAD
 import { AppTarget } from '../config/appTarget';
 import { ExternalLink } from 'lucide-react';
 
-=======
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
 interface HeaderBarProps {
   currentConfig: ClientConfig;
   activePresetKey: string;
@@ -19,11 +16,8 @@ interface HeaderBarProps {
   appMode: 'development' | 'client';
   setAppMode: (mode: 'development' | 'client') => void;
   isClientDeployment?: boolean;
-<<<<<<< HEAD
   targetOverride?: AppTarget;
   setTargetOverride?: (target: AppTarget) => void;
-=======
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
@@ -37,11 +31,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   appMode,
   setAppMode,
   isClientDeployment = false,
-<<<<<<< HEAD
   targetOverride = 'dev',
   setTargetOverride,
-=======
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
 }) => {
   return (
     <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-50 shadow-md">
@@ -166,7 +157,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
           {/* Mode Switcher Toggle Button (Master Deployment Only) */}
           {!isClientDeployment && (
-<<<<<<< HEAD
             <div className="flex items-center gap-1.5">
               {setTargetOverride && (
                 <div className="hidden lg:flex items-center gap-1 bg-slate-800/90 p-1 rounded-lg border border-slate-700 text-xs">
@@ -227,27 +217,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 </button>
               )}
             </div>
-=======
-            appMode === 'development' ? (
-              <button
-                onClick={() => setAppMode('client')}
-                className="flex items-center gap-1.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/50 px-3 py-1.5 rounded-lg text-xs font-extrabold transition shadow hover:scale-105"
-                title="Switch to Client Mode (Hides developer controls & presets)"
-              >
-                <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Client Mode</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => setAppMode('development')}
-                className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-700 transition"
-                title="Switch back to Developer Mode"
-              >
-                <Wrench className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline">Dev Mode</span>
-              </button>
-            )
->>>>>>> 6e2776878caf3a8a9894b05fa83db753d6bd563e
           )}
         </div>
 
