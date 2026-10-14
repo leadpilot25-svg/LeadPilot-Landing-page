@@ -1,0 +1,6 @@
+{
+  "name": "LeadPilot - Client Landing & CRM Platform",
+  "description": "Professional landing website, Google Business Profile optimisation, and client-isolated CRM lead management system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
