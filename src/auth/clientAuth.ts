@@ -1,9 +1,23 @@
 /**
- * Client CRM Authentication & Session Management
+ * Client CRM Authentication & Tenant Session Management
  * 
- * Provides client login, session validation, logout, and strict tenant isolation.
- * Guarantees that each client user is bound exclusively to their clientId.
+ * Powered by Firebase Authentication and Firestore Security Rules.
+ * Guarantees cryptographic verification of user identity and strict tenant boundary isolation.
+ * Demo credentials and master passphrases have been purged from production.
  */
+
+import {
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  onAuthStateChanged,
+  User as FirebaseUser,
+  createUserWithEmailAndPassword,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { CURRENT_APP_TARGET, IS_DEV_DEPLOYMENT } from '../config/appTarget';
 
 export interface ClientUser {
   userId: string;
@@ -11,178 +25,295 @@ export interface ClientUser {
   clientId: string;
   businessName: string;
   role: 'client_admin' | 'client_staff';
-  token: string;
   createdAt: string;
 }
 
-const AUTH_STORAGE_KEY = 'leadpilot_client_session_v1';
+// Memory cache for active session
+let activeSessionUser: ClientUser | null = null;
 
-// Seeded client accounts for testing and production deployment
-export const REGISTERED_CLIENT_ACCOUNTS: Array<{
-  email: string;
-  clientId: string;
-  businessName: string;
-  passwordHash: string; // Plaintext or hash verified
-  role: 'client_admin' | 'client_staff';
-}> = [
-  {
-    email: 'client@tarot.com',
-    clientId: 'demo-tarot',
-    businessName: 'Tarot Coaching & Guidance',
-    passwordHash: 'tarot2026!',
-    role: 'client_admin',
-  },
-  {
-    email: 'client@hvac.com',
-    clientId: 'demo-hvac',
+// Standard tenant metadata map for initial tenant assignment
+export const TENANT_METADATA_MAP: Record<string, { businessName: string; industry: string }> = {
+  'client-apex-hvac': {
     businessName: 'Apex Heating & Cooling',
-    passwordHash: 'hvac2026!',
-    role: 'client_admin',
+    industry: 'hvac',
   },
-  {
-    email: 'client@plumbing.com',
-    clientId: 'demo-plumbing',
+  'demo-hvac': {
+    businessName: 'Apex Heating & Cooling',
+    industry: 'hvac',
+  },
+  'demo-tarot': {
+    businessName: 'Tarot Coaching & Guidance',
+    industry: 'tarot',
+  },
+  'demo-plumbing': {
     businessName: 'ProDrain Plumbing Services',
-    passwordHash: 'plumbing2026!',
-    role: 'client_admin',
+    industry: 'plumbing',
   },
-];
+  'demo-physio': {
+    businessName: 'Apex Physiotherapy Clinic',
+    industry: 'physiotherapy',
+  },
+  'demo-realestate': {
+    businessName: 'Vanguard Realty Group',
+    industry: 'real-estate',
+  },
+};
 
 /**
- * Check if a custom environment CRM user is configured
+ * Determine tenant ID for a user from their email or profile
  */
-function getCustomEnvAccount() {
-  const envUser = ((import.meta as any).env?.VITE_CRM_USER || '').trim().toLowerCase();
-  const envPass = ((import.meta as any).env?.VITE_CRM_PASSWORD || '').trim();
-  const envClientId = ((import.meta as any).env?.VITE_CLIENT_ID || 'client-primary').trim();
-
-  if (envUser && envPass) {
-    return {
-      email: envUser,
-      clientId: envClientId,
-      businessName: 'Primary Client Business',
-      passwordHash: envPass,
-      role: 'client_admin' as const,
-    };
-  }
-  return null;
+export function inferTenantFromEmail(email: string): string {
+  const clean = (email || '').toLowerCase().trim();
+  if (clean.includes('tarot')) return 'demo-tarot';
+  if (clean.includes('hvac')) return 'client-apex-hvac';
+  if (clean.includes('plumb')) return 'demo-plumbing';
+  if (clean.includes('physio') || clean.includes('clinic')) return 'demo-physio';
+  if (clean.includes('real') || clean.includes('realty')) return 'demo-realestate';
+  
+  // Generic fallback slug from email domain/username
+  const parts = clean.split('@');
+  const slug = (parts[0] || 'client').replace(/[^a-z0-9_-]/g, '-').slice(0, 30);
+  return `client-${slug}`;
 }
 
 /**
- * Get active client session from storage
+ * Fetch or bootstrap user profile document in Firestore
  */
-export function getCurrentClientSession(): ClientUser | null {
-  if (typeof window === 'undefined') return null;
+export async function getOrProvisionUserProfile(user: FirebaseUser, desiredTenantId?: string): Promise<ClientUser> {
+  const userRef = doc(db, 'users', user.uid);
+  let tenantId = desiredTenantId || inferTenantFromEmail(user.email || '');
+  let businessName = TENANT_METADATA_MAP[tenantId]?.businessName || 'Business Client Portal';
+  let role: 'client_admin' | 'client_staff' = 'client_admin';
+
   try {
-    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY) || localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return null;
-    const session: ClientUser = JSON.parse(raw);
-    if (session && session.clientId && session.token) {
-      return session;
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      tenantId = data.tenantId || tenantId;
+      role = data.role === 'staff' ? 'client_staff' : 'client_admin';
+      businessName = TENANT_METADATA_MAP[tenantId]?.businessName || data.businessName || businessName;
+    } else {
+      // First time sign-in: write initial user record & tenant membership
+      const newUserData = {
+        uid: user.uid,
+        email: user.email || '',
+        displayName: user.displayName || user.email?.split('@')[0] || 'Client User',
+        tenantId,
+        businessName,
+        role: 'owner', // In Firestore rules: owner / staff
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        await setDoc(userRef, newUserData);
+        // Also register under tenant members subcollection for Master Gate validation
+        const memberRef = doc(db, 'tenants', tenantId, 'members', user.uid);
+        await setDoc(memberRef, {
+          uid: user.uid,
+          email: user.email || '',
+          role: 'owner',
+          addedAt: new Date().toISOString(),
+        });
+      } catch (writeErr) {
+        console.warn('Note: Could not create user profile document:', writeErr);
+      }
     }
   } catch (err) {
-    console.error('Error reading client auth session:', err);
+    console.warn('Reading user profile from Firestore:', err);
   }
-  return null;
+
+  const clientUser: ClientUser = {
+    userId: user.uid,
+    email: user.email || '',
+    clientId: tenantId,
+    businessName,
+    role,
+    createdAt: new Date().toISOString(),
+  };
+
+  activeSessionUser = clientUser;
+  return clientUser;
 }
 
 /**
- * Authenticate client credentials
+ * Get active client session
+ */
+export function getCurrentClientSession(): ClientUser | null {
+  if (activeSessionUser) return activeSessionUser;
+
+  const currentFbUser = auth.currentUser;
+  if (!currentFbUser) return null;
+
+  const tenantId = inferTenantFromEmail(currentFbUser.email || '');
+  const businessName = TENANT_METADATA_MAP[tenantId]?.businessName || 'Business Client Portal';
+
+  return {
+    userId: currentFbUser.uid,
+    email: currentFbUser.email || '',
+    clientId: tenantId,
+    businessName,
+    role: 'client_admin',
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Listen to Firebase Auth state changes
+ */
+export function onClientAuthStateChanged(callback: (user: ClientUser | null) => void): () => void {
+  return onAuthStateChanged(auth, async (fbUser) => {
+    if (fbUser) {
+      try {
+        const user = await getOrProvisionUserProfile(fbUser);
+        activeSessionUser = user;
+        callback(user);
+      } catch {
+        const fallback = getCurrentClientSession();
+        activeSessionUser = fallback;
+        callback(fallback);
+      }
+    } else {
+      activeSessionUser = null;
+      callback(null);
+    }
+    window.dispatchEvent(new Event('leadpilot_auth_changed'));
+  });
+}
+
+/**
+ * Authenticate client with Firebase Email and Password
  */
 export async function loginClient(
   identifier: string,
   password: string,
-  rememberMe: boolean = true
+  tenantScope?: string
 ): Promise<{ success: boolean; user?: ClientUser; error?: string }> {
-  const cleanId = (identifier || '').trim().toLowerCase();
+  const cleanId = (identifier || '').trim();
   const cleanPass = (password || '').trim();
 
   if (!cleanId || !cleanPass) {
-    return { success: false, error: 'Please enter your email or Client ID and password.' };
+    return { success: false, error: 'Please enter your email and password.' };
   }
 
-  // Check custom environment credentials first if configured
-  const envAccount = getCustomEnvAccount();
-  let matchedAccount: typeof REGISTERED_CLIENT_ACCOUNTS[0] | null = null;
-
-  if (envAccount && (cleanId === envAccount.email || cleanId === envAccount.clientId.toLowerCase())) {
-    if (cleanPass === envAccount.passwordHash) {
-      matchedAccount = envAccount;
-    } else {
-      return { success: false, error: 'Invalid password. Please check your credentials.' };
-    }
-  }
-
-  // Check registered accounts
-  if (!matchedAccount) {
-    for (const acc of REGISTERED_CLIENT_ACCOUNTS) {
-      if (cleanId === acc.email.toLowerCase() || cleanId === acc.clientId.toLowerCase()) {
-        if (cleanPass === acc.passwordHash) {
-          matchedAccount = acc;
-          break;
-        } else {
-          return { success: false, error: 'Invalid password. Please check your credentials.' };
-        }
-      }
-    }
-  }
-
-  // Flexible Client ID fallback with Master Client Passphrase if supplied
-  if (!matchedAccount) {
-    const defaultPassphrase = 'client2026!';
-    if (cleanPass === defaultPassphrase && cleanId.length >= 3) {
-      matchedAccount = {
-        email: cleanId.includes('@') ? cleanId : `${cleanId}@clientportal.com`,
-        clientId: cleanId.replace(/[^a-z0-9_-]/g, ''),
-        businessName: cleanId.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-        passwordHash: defaultPassphrase,
-        role: 'client_admin',
-      };
-    }
-  }
-
-  if (!matchedAccount) {
-    return {
-      success: false,
-      error: 'Account not found. Please verify your email or Client ID.',
-    };
-  }
-
-  // Create authenticated user session
-  const userSession: ClientUser = {
-    userId: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    email: matchedAccount.email,
-    clientId: matchedAccount.clientId,
-    businessName: matchedAccount.businessName,
-    role: matchedAccount.role,
-    token: `lp_tok_${btoa(matchedAccount.clientId + ':' + Date.now()).replace(/=/g, '')}`,
-    createdAt: new Date().toISOString(),
-  };
+  // Format email if username/clientId was provided
+  const email = cleanId.includes('@') ? cleanId.toLowerCase() : `${cleanId.toLowerCase()}@leadpilotcrm.internal`;
 
   try {
-    const raw = JSON.stringify(userSession);
-    sessionStorage.setItem(AUTH_STORAGE_KEY, raw);
-    if (rememberMe) {
-      localStorage.setItem(AUTH_STORAGE_KEY, raw);
-    }
+    const cred = await signInWithEmailAndPassword(auth, email, cleanPass);
+    const clientUser = await getOrProvisionUserProfile(cred.user, tenantScope);
+    activeSessionUser = clientUser;
     window.dispatchEvent(new Event('leadpilot_auth_changed'));
-  } catch (err) {
-    console.error('Failed to persist auth session:', err);
+    return { success: true, user: clientUser };
+  } catch (err: any) {
+    const code = err?.code || '';
+    if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+      // In development mode only, facilitate test-user auto-provisioning for testing
+      if (IS_DEV_DEPLOYMENT) {
+        try {
+          const newCred = await createUserWithEmailAndPassword(auth, email, cleanPass);
+          const clientUser = await getOrProvisionUserProfile(newCred.user, tenantScope);
+          activeSessionUser = clientUser;
+          window.dispatchEvent(new Event('leadpilot_auth_changed'));
+          return { success: true, user: clientUser };
+        } catch (createErr: any) {
+          return { success: false, error: createErr?.message || 'Authentication failed' };
+        }
+      }
+      return { success: false, error: 'Invalid email or password. Please verify your credentials.' };
+    }
+    if (code === 'auth/wrong-password') {
+      return { success: false, error: 'Incorrect password. Please try again.' };
+    }
+    if (code === 'auth/too-many-requests') {
+      return { success: false, error: 'Access temporarily disabled due to many failed attempts. Try again later.' };
+    }
+    return { success: false, error: err?.message || 'Authentication failed. Please verify your credentials.' };
   }
-
-  return { success: true, user: userSession };
 }
 
 /**
- * Logout current client
+ * Authenticate client using Firebase Google Sign-In Popup
  */
-export function logoutClient(): void {
-  if (typeof window === 'undefined') return;
+export async function loginWithGoogle(
+  desiredTenantId?: string
+): Promise<{ success: boolean; user?: ClientUser; error?: string }> {
   try {
-    sessionStorage.removeItem(AUTH_STORAGE_KEY);
-    localStorage.removeItem(AUTH_STORAGE_KEY);
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const cred = await signInWithPopup(auth, provider);
+    const clientUser = await getOrProvisionUserProfile(cred.user, desiredTenantId);
+    activeSessionUser = clientUser;
     window.dispatchEvent(new Event('leadpilot_auth_changed'));
-  } catch (err) {
-    console.error('Error logging out client:', err);
+    return { success: true, user: clientUser };
+  } catch (err: any) {
+    console.error('Google Sign-In error:', err);
+    return { success: false, error: err?.message || 'Google Sign-In failed or popup was closed.' };
   }
+}
+
+/**
+ * Register / Create a new client tenant account
+ */
+export async function registerClient(
+  email: string,
+  password: string,
+  tenantId: string,
+  businessName: string
+): Promise<{ success: boolean; user?: ClientUser; error?: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPass = password.trim();
+
+  if (!cleanEmail || !cleanPass || cleanPass.length < 6) {
+    return { success: false, error: 'Password must be at least 6 characters.' };
+  }
+
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPass);
+    const userRef = doc(db, 'users', cred.user.uid);
+    await setDoc(userRef, {
+      uid: cred.user.uid,
+      email: cleanEmail,
+      displayName: businessName,
+      tenantId: tenantId.trim().toLowerCase(),
+      businessName,
+      role: 'owner',
+      createdAt: new Date().toISOString(),
+    });
+
+    const memberRef = doc(db, 'tenants', tenantId, 'members', cred.user.uid);
+    await setDoc(memberRef, {
+      uid: cred.user.uid,
+      email: cleanEmail,
+      role: 'owner',
+      addedAt: new Date().toISOString(),
+    });
+
+    const clientUser: ClientUser = {
+      userId: cred.user.uid,
+      email: cleanEmail,
+      clientId: tenantId,
+      businessName,
+      role: 'client_admin',
+      createdAt: new Date().toISOString(),
+    };
+
+    activeSessionUser = clientUser;
+    window.dispatchEvent(new Event('leadpilot_auth_changed'));
+    return { success: true, user: clientUser };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Registration failed.' };
+  }
+}
+
+/**
+ * Secure Logout
+ */
+export async function logoutClient(): Promise<void> {
+  activeSessionUser = null;
+  try {
+    await signOut(auth);
+  } catch (err) {
+    console.error('Sign out error:', err);
+  }
+  window.dispatchEvent(new Event('leadpilot_auth_changed'));
 }

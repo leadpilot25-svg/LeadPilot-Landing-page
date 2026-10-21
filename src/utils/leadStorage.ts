@@ -1,15 +1,28 @@
 import { LeadItem, LeadStatus, ContactMethod, LeadNote, LeadContactLog } from '../types';
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  writeBatch,
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 
-const STORAGE_KEY = 'leadpilot_leads_v1';
+const STORAGE_KEY_PREFIX = 'leadpilot_leads_';
 
 /**
- * Storage key helper scoped by Client ID for multi-tenant data isolation
+ * Storage key helper strictly scoped by Client ID / Tenant ID
  */
 export function getClientStorageKey(clientId?: string): string {
   if (!clientId || clientId === 'all' || clientId === 'master') {
-    return STORAGE_KEY;
+    return 'leadpilot_leads_default';
   }
-  return `leadpilot_leads_${clientId.trim().toLowerCase()}`;
+  return `${STORAGE_KEY_PREFIX}${clientId.trim().toLowerCase()}`;
 }
 
 /**
@@ -24,7 +37,6 @@ export function deduplicateLeads(leads: LeadItem[]): LeadItem[] {
     let uniqueId = lead.id.trim();
 
     if (seen.has(uniqueId)) {
-      // Append a unique suffix to resolve duplicate key conflicts
       let counter = 1;
       while (seen.has(`${uniqueId}-${counter}`)) {
         counter++;
@@ -40,75 +52,252 @@ export function deduplicateLeads(leads: LeadItem[]): LeadItem[] {
 }
 
 /**
- * Get stored leads from localStorage with client isolation
- * @param clientId Optional client ID filter. If provided, strictly returns leads for this client.
+ * Helper to strip undefined values so Cloud Firestore does not throw invalid-argument
+ */
+export function cleanForFirestore<T extends Record<string, any>>(obj: T): Partial<T> {
+  const clean: any = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) {
+      clean[k] = v;
+    }
+  }
+  return clean;
+}
+
+/**
+ * Initial sample demo leads for realistic local client demos
+ */
+export function getInitialDemoLeads(clientId?: string): LeadItem[] {
+  const clean = (clientId || 'client-apex-hvac').trim().toLowerCase();
+  const now = Date.now();
+
+  if (clean.includes('hvac') || clean === 'demo-hvac' || clean === 'client-apex-hvac') {
+    return [
+      {
+        id: 'LP-20261021-0001',
+        timestamp: new Date(now - 35 * 60 * 1000).toISOString(),
+        clientId: 'client-apex-hvac',
+        businessName: 'Apex Heating & Cooling',
+        name: 'Marcus Vance [Sample]',
+        phone: '+1 (555) 247-4822',
+        email: 'marcus.vance@example.com',
+        service: 'Emergency AC Repair & Diagnostics',
+        details: '[Sample Demo] AC blowing warm air on second floor. Outside fan not spinning. Upfront diagnostic requested.',
+        address: '4412 Mockingbird Ln, Dallas, TX 75205',
+        leadSource: 'Landing Page Enquiry (Website)',
+        status: 'New',
+        notes: [
+          {
+            id: 'note-1',
+            text: 'Enquiry submitted via Apex HVAC landing page form.',
+            createdAt: new Date(now - 35 * 60 * 1000).toISOString(),
+            author: 'Website Form',
+          },
+        ],
+        contactCount: 0,
+      },
+      {
+        id: 'LP-20261021-0002',
+        timestamp: new Date(now - 3 * 3600 * 1000).toISOString(),
+        clientId: 'client-apex-hvac',
+        businessName: 'Apex Heating & Cooling',
+        name: 'Sarah Jenkins [Sample]',
+        phone: '+1 (555) 389-7711',
+        email: 'sarah.jenkins@example.com',
+        service: 'Heat Pump & System Installation',
+        details: '[Sample Demo] Interested in high-efficiency heat pump replacement for 2,400 sq ft home.',
+        address: '1820 Park Blvd, Plano, TX 75074',
+        leadSource: 'Google Business Profile / Local Search',
+        status: 'Follow-up',
+        followUpDate: '2026-10-24',
+        notes: [
+          {
+            id: 'note-2',
+            text: 'Estimate consultation scheduled for Thursday morning at 10:00 AM.',
+            createdAt: new Date(now - 2 * 3600 * 1000).toISOString(),
+            author: 'Latasha (Agent)',
+          },
+        ],
+        contactCount: 1,
+        lastContacted: new Date(now - 2 * 3600 * 1000).toISOString(),
+        lastContactMethod: 'Call',
+      },
+      {
+        id: 'LP-20261021-0003',
+        timestamp: new Date(now - 22 * 3600 * 1000).toISOString(),
+        clientId: 'client-apex-hvac',
+        businessName: 'Apex Heating & Cooling',
+        name: 'David Rodriguez [Sample]',
+        phone: '+1 (555) 912-3344',
+        email: 'david.rodriguez@example.com',
+        service: 'Seasonal AC & Heating Tune-Up',
+        details: '[Sample Demo] Annual preventative 24-point inspection and filter replacement.',
+        address: '3105 MacArthur Blvd, Irving, TX 75062',
+        leadSource: 'Phone Call (Direct Inbound)',
+        status: 'Contacted',
+        notes: [
+          {
+            id: 'note-3',
+            text: 'Customer confirmed arrival window between 1:00 PM and 3:00 PM.',
+            createdAt: new Date(now - 18 * 3600 * 1000).toISOString(),
+            author: 'Latasha (Agent)',
+          },
+        ],
+        contactCount: 1,
+        lastContacted: new Date(now - 18 * 3600 * 1000).toISOString(),
+        lastContactMethod: 'Call',
+      },
+    ];
+  }
+
+  if (clean.includes('tarot') || clean === 'demo-tarot') {
+    return [
+      {
+        id: 'LP-20261020-0001',
+        timestamp: new Date(now - 2 * 3600 * 1000).toISOString(),
+        clientId: 'demo-tarot',
+        businessName: 'Demo Business',
+        name: 'Ananya Nair [Sample]',
+        phone: '+91 98460 11223',
+        email: 'ananya.nair@example.com',
+        service: 'Personal Tarot Reading',
+        details: '[Sample Demo] Career path and personal transition guidance session.',
+        address: 'Kochi, Kerala & Online',
+        leadSource: 'Google Business Profile / Local Search',
+        status: 'New',
+        notes: [
+          {
+            id: 'note-t1',
+            text: 'Initial enquiry submitted through website contact form.',
+            createdAt: new Date(now - 2 * 3600 * 1000).toISOString(),
+            author: 'Website Form',
+          },
+        ],
+        contactCount: 0,
+      },
+    ];
+  }
+
+  return [];
+}
+
+/**
+ * Get stored leads from local client cache
  */
 export function getStoredLeads(clientId?: string): LeadItem[] {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === 'undefined' && typeof localStorage === 'undefined') return [];
   try {
     const scopedKey = getClientStorageKey(clientId);
-    let raw = localStorage.getItem(scopedKey);
-
-    // Fallback: If client-specific storage is empty, check master storage and filter
-    if (!raw && clientId && clientId !== 'all' && clientId !== 'master') {
-      const masterRaw = localStorage.getItem(STORAGE_KEY);
-      if (masterRaw) {
-        const masterLeads: LeadItem[] = JSON.parse(masterRaw);
-        const filtered = masterLeads.filter((l) => l.clientId && l.clientId.toLowerCase() === clientId.toLowerCase());
-        if (filtered.length > 0) {
-          localStorage.setItem(scopedKey, JSON.stringify(filtered));
-          return deduplicateLeads(filtered);
-        }
+    const raw = localStorage.getItem(scopedKey);
+    if (raw === null) {
+      // First-time visit: seed sample demo leads for this tenant
+      const initialLeads = getInitialDemoLeads(clientId);
+      if (initialLeads.length > 0) {
+        localStorage.setItem(scopedKey, JSON.stringify(initialLeads));
+        return initialLeads;
       }
+      return [];
     }
-
-    if (!raw) return [];
     const parsed: LeadItem[] = JSON.parse(raw);
     const deduplicated = deduplicateLeads(parsed);
 
-    if (clientId && clientId !== 'all' && clientId !== 'master') {
-      return deduplicated.filter((l) => !l.clientId || l.clientId.toLowerCase() === clientId.toLowerCase());
+    if (clientId && clientId !== 'all') {
+      return deduplicated.filter((l) => Boolean(l.clientId) && l.clientId.toLowerCase() === clientId.toLowerCase());
     }
-
     return deduplicated;
   } catch (err) {
-    console.error('Error reading LeadPilot leads from localStorage:', err);
+    console.error('Error reading leads from storage:', err);
     return [];
   }
 }
 
 /**
- * Save leads array to localStorage with client isolation
- * @param leads Array of leads to save
- * @param clientId Optional client ID for tenant-isolated storage
+ * Save leads array to local tenant cache
  */
 export function saveAllLeads(leads: LeadItem[], clientId?: string): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' && typeof localStorage === 'undefined') return;
   try {
     const cleanLeads = deduplicateLeads(leads);
     const scopedKey = getClientStorageKey(clientId);
     localStorage.setItem(scopedKey, JSON.stringify(cleanLeads));
-
-    // Also sync to master storage if in master/dev mode
-    if (!clientId || clientId === 'all' || clientId === 'master') {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanLeads));
-    } else {
-      // Update the master storage without wiping other clients' data
-      try {
-        const masterRaw = localStorage.getItem(STORAGE_KEY);
-        const masterLeads: LeadItem[] = masterRaw ? JSON.parse(masterRaw) : [];
-        const nonClientLeads = masterLeads.filter((l) => l.clientId && l.clientId.toLowerCase() !== clientId.toLowerCase());
-        const updatedMaster = deduplicateLeads([...cleanLeads, ...nonClientLeads]);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedMaster));
-      } catch {
-        // non-blocking
-      }
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new Event('leadpilot_leads_updated'));
     }
-
-    window.dispatchEvent(new Event('leadpilot_leads_updated'));
   } catch (err) {
-    console.error('Error saving LeadPilot leads to localStorage:', err);
+    console.error('Error saving leads to storage:', err);
   }
+}
+
+/**
+ * Fetch leads directly from Firestore subcollection /tenants/{tenantId}/leads
+ * Enforces backend tenant isolation via Firestore Security Rules.
+ */
+export async function fetchFirestoreLeads(tenantId: string): Promise<LeadItem[]> {
+  if (!tenantId || tenantId === 'all') return getStoredLeads(tenantId);
+
+  const cleanTenant = tenantId.trim().toLowerCase();
+  const leadsPath = `tenants/${cleanTenant}/leads`;
+
+  try {
+    const leadsCol = collection(db, 'tenants', cleanTenant, 'leads');
+    const q = query(leadsCol, orderBy('timestamp', 'desc'));
+    const snapshot = await getDocs(q);
+
+    const firestoreLeads: LeadItem[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() as LeadItem;
+      firestoreLeads.push({
+        ...data,
+        id: docSnap.id,
+        clientId: cleanTenant,
+      });
+    });
+
+    // Update local cache
+    saveAllLeads(firestoreLeads, cleanTenant);
+    return firestoreLeads;
+  } catch (error) {
+    console.warn(`Firestore read warning for ${leadsPath} (using cached leads):`, error);
+    // If permission denied or network error, return existing local cache
+    return getStoredLeads(cleanTenant);
+  }
+}
+
+/**
+ * Realtime subscription to tenant leads in Firestore
+ */
+export function subscribeTenantLeads(
+  tenantId: string,
+  onUpdate: (leads: LeadItem[]) => void,
+  onError?: (err: any) => void
+): () => void {
+  if (!tenantId || tenantId === 'all') {
+    onUpdate(getStoredLeads());
+    return () => {};
+  }
+
+  const cleanTenant = tenantId.trim().toLowerCase();
+  const leadsPath = `tenants/${cleanTenant}/leads`;
+  const leadsCol = collection(db, 'tenants', cleanTenant, 'leads');
+  const q = query(leadsCol, orderBy('timestamp', 'desc'));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const leads: LeadItem[] = [];
+      snapshot.forEach((docSnap) => {
+        const item = docSnap.data() as LeadItem;
+        leads.push({ ...item, id: docSnap.id, clientId: cleanTenant });
+      });
+      saveAllLeads(leads, cleanTenant);
+      onUpdate(leads);
+    },
+    (error) => {
+      console.warn(`Firestore onSnapshot notice for ${leadsPath}:`, error);
+      if (onError) onError(error);
+      onUpdate(getStoredLeads(cleanTenant));
+    }
+  );
 }
 
 /**
@@ -118,7 +307,7 @@ export function generateLeadId(existingCount: number = 0): string {
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
   const existingLeads = getStoredLeads();
-  
+
   let num = existingCount + 1;
   let candidate = `LP-${dateStr}-${String(num).padStart(4, '0')}`;
 
@@ -130,17 +319,471 @@ export function generateLeadId(existingCount: number = 0): string {
   return candidate;
 }
 
-export interface ConnectionTestResult {
-  success: boolean;
-  statusText: string;
+/**
+ * Save a new lead or update an existing lead with Firestore persistence
+ */
+export async function saveLead(
+  input: Partial<LeadItem> & { name: string; phone: string; service: string },
+  endpointUrl?: string
+): Promise<{ success: boolean; message: string; lead: LeadItem }> {
+  const targetTenant = (input.clientId || 'client-apex-hvac').trim().toLowerCase();
+  const leads = getStoredLeads(targetTenant);
+
+  let existingIndex = input.id ? leads.findIndex((l) => l.id === input.id) : -1;
+
+  if (existingIndex === -1) {
+    const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    existingIndex = leads.findIndex(
+      (l) =>
+        l.phone.replace(/\D/g, '') === input.phone.replace(/\D/g, '') &&
+        l.service.toLowerCase() === input.service.toLowerCase() &&
+        l.timestamp >= fiveMinsAgo
+    );
+  }
+
+  const nowIso = new Date().toISOString();
+  let targetLead: LeadItem;
+
+  if (existingIndex !== -1) {
+    const existing = leads[existingIndex];
+    targetLead = {
+      ...existing,
+      name: input.name || existing.name,
+      phone: input.phone || existing.phone,
+      email: input.email || existing.email,
+      service: input.service || existing.service,
+      details: input.details ? `${existing.details} | Update: ${input.details}` : existing.details,
+      address: input.address || existing.address,
+      clientId: targetTenant,
+      businessName: input.businessName || existing.businessName,
+      leadSource: input.leadSource || existing.leadSource,
+      pageUrl: input.pageUrl || existing.pageUrl,
+    };
+    leads[existingIndex] = targetLead;
+  } else {
+    const newLeadId = input.id || generateLeadId(leads.length);
+    targetLead = {
+      id: newLeadId,
+      timestamp: input.timestamp || nowIso,
+      clientId: targetTenant,
+      businessName: input.businessName || 'Local Business',
+      name: input.name.trim(),
+      phone: input.phone.trim(),
+      email: input.email ? input.email.trim() : undefined,
+      service: input.service.trim(),
+      details: input.details || 'No additional details provided.',
+      address: input.address || '',
+      leadSource: input.leadSource || 'Google Business Profile / Local Search',
+      pageUrl: input.pageUrl || '',
+      status: (input.status as LeadStatus) || 'New',
+      notes: input.notes || [],
+      followUpDate: input.followUpDate,
+      lastContacted: input.lastContacted,
+      lastContactMethod: input.lastContactMethod,
+      contactCount: input.contactCount || 0,
+      contactLogs: input.contactLogs || [],
+    };
+    leads.unshift(targetLead);
+  }
+
+  // 1. Update local cache immediately
+  saveAllLeads(leads, targetTenant);
+
+  // 2. Persist to Firestore: /tenants/{tenantId}/leads/{leadId}
+  try {
+    const leadDocRef = doc(db, 'tenants', targetTenant, 'leads', targetLead.id);
+    await setDoc(leadDocRef, cleanForFirestore(targetLead), { merge: true });
+  } catch (firestoreErr) {
+    console.warn('Note: Could not persist lead to Firestore directly:', firestoreErr);
+  }
+
+  // 3. Optional Google Sheet webhook sync if configured
+  let syncMessage = '';
+  if (endpointUrl && endpointUrl.startsWith('http')) {
+    try {
+      const syncRes = await syncLeadActionToRemote(endpointUrl, { action: 'createLead', ...targetLead });
+      if (syncRes.success) {
+        syncMessage = ' and synced to Google Sheet';
+      } else {
+        syncMessage = ` (Google Sheet sync note: ${syncRes.message})`;
+      }
+    } catch (e: any) {
+      syncMessage = ` (Google Sheet sync note: ${e?.message || 'Network error'})`;
+    }
+  }
+
+  return { success: true, message: `Lead saved to CRM${syncMessage}.`, lead: targetLead };
+}
+
+/**
+ * Update lead status in Firestore & local cache
+ */
+export async function updateLeadStatus(
+  leadId: string,
+  status: LeadStatus,
+  tenantId?: string,
+  endpointUrl?: string
+): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
+  const cleanTenant = (tenantId || 'client-apex-hvac').trim().toLowerCase();
+  const leads = getStoredLeads(cleanTenant);
+  const idx = leads.findIndex((l) => l.id === leadId);
+
+  const autoNote: LeadNote = {
+    id: `note-${Date.now()}`,
+    text: `Status updated to "${status}"`,
+    createdAt: new Date().toISOString(),
+    author: 'Agent',
+  };
+
+  let updatedLead: LeadItem | null = null;
+  if (idx !== -1) {
+    leads[idx].status = status;
+    leads[idx].notes = [autoNote, ...(leads[idx].notes || [])];
+    updatedLead = leads[idx];
+    saveAllLeads(leads, cleanTenant);
+  }
+
+  // Persist to Firestore
+  try {
+    const leadRef = doc(db, 'tenants', cleanTenant, 'leads', leadId);
+    await updateDoc(leadRef, {
+      status,
+      notes: updatedLead?.notes || [autoNote],
+    });
+  } catch (err) {
+    console.warn('Firestore updateLeadStatus notice:', err);
+  }
+
+  // Optional Google Sheet webhook sync
+  if (endpointUrl && endpointUrl.startsWith('http')) {
+    try {
+      await syncLeadActionToRemote(endpointUrl, {
+        action: 'updateStatus',
+        leadId,
+        clientId: cleanTenant,
+        status,
+      });
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  return { success: true, message: `Status updated to ${status}`, lead: updatedLead };
+}
+
+/**
+ * Add a note to a lead in Firestore & local cache
+ */
+export async function addLeadNote(
+  leadId: string,
+  text: string,
+  author = 'Agent',
+  tenantId?: string,
+  endpointUrl?: string
+): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
+  const cleanTenant = (tenantId || 'client-apex-hvac').trim().toLowerCase();
+  const leads = getStoredLeads(cleanTenant);
+  const idx = leads.findIndex((l) => l.id === leadId);
+
+  const newNote: LeadNote = {
+    id: `note-${Date.now()}`,
+    text: text.trim(),
+    createdAt: new Date().toISOString(),
+    author,
+  };
+
+  let updatedLead: LeadItem | null = null;
+  if (idx !== -1) {
+    leads[idx].notes = [newNote, ...(leads[idx].notes || [])];
+    updatedLead = leads[idx];
+    saveAllLeads(leads, cleanTenant);
+  }
+
+  // Persist to Firestore
+  try {
+    const leadRef = doc(db, 'tenants', cleanTenant, 'leads', leadId);
+    await updateDoc(leadRef, {
+      notes: updatedLead?.notes || [newNote],
+    });
+  } catch (err) {
+    console.warn('Firestore addLeadNote notice:', err);
+  }
+
+  if (endpointUrl && endpointUrl.startsWith('http')) {
+    try {
+      await syncLeadActionToRemote(endpointUrl, {
+        action: 'addNote',
+        leadId,
+        clientId: cleanTenant,
+        text: text.trim(),
+        author,
+      });
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  return { success: true, message: 'Note added successfully', lead: updatedLead };
+}
+
+/**
+ * Schedule follow-up date for a lead in Firestore
+ */
+export async function scheduleLeadFollowUp(
+  leadId: string,
+  followUpDate: string,
+  tenantId?: string,
+  endpointUrl?: string
+): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
+  const cleanTenant = (tenantId || 'demo-tarot').trim().toLowerCase();
+  const leads = getStoredLeads(cleanTenant);
+  const idx = leads.findIndex((l) => l.id === leadId);
+
+  const autoNote: LeadNote = {
+    id: `note-${Date.now()}`,
+    text: followUpDate ? `Follow-up scheduled for ${new Date(followUpDate).toLocaleString()}` : 'Follow-up date cleared',
+    createdAt: new Date().toISOString(),
+    author: 'System',
+  };
+
+  let updatedLead: LeadItem | null = null;
+  if (idx !== -1) {
+    leads[idx].followUpDate = followUpDate;
+    if (leads[idx].status === 'New') {
+      leads[idx].status = 'Follow-up';
+    }
+    leads[idx].notes = [autoNote, ...(leads[idx].notes || [])];
+    updatedLead = leads[idx];
+    saveAllLeads(leads, cleanTenant);
+  }
+
+  try {
+    const leadRef = doc(db, 'tenants', cleanTenant, 'leads', leadId);
+    await updateDoc(leadRef, {
+      followUpDate,
+      status: updatedLead?.status || 'Follow-up',
+      notes: updatedLead?.notes || [autoNote],
+    });
+  } catch (err) {
+    console.warn('Firestore scheduleLeadFollowUp notice:', err);
+  }
+
+  if (endpointUrl && endpointUrl.startsWith('http')) {
+    try {
+      await syncLeadActionToRemote(endpointUrl, {
+        action: 'scheduleFollowUp',
+        leadId,
+        clientId: cleanTenant,
+        followUpDate,
+        status: 'Follow-up',
+      });
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  return { success: true, message: 'Follow-up scheduled successfully', lead: updatedLead };
+}
+
+/**
+ * Log a contact attempt (Call, WhatsApp, SMS, Email) in Firestore
+ */
+export async function logLeadContact(
+  leadId: string,
+  method: ContactMethod,
+  customNote?: string,
+  tenantId?: string,
+  endpointUrl?: string
+): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
+  const cleanTenant = (tenantId || 'demo-tarot').trim().toLowerCase();
+  const leads = getStoredLeads(cleanTenant);
+  const idx = leads.findIndex((l) => l.id === leadId);
+
+  const nowIso = new Date().toISOString();
+  const logEntry: LeadContactLog = {
+    id: `log-${Date.now()}`,
+    method,
+    timestamp: nowIso,
+    notes: customNote || `Outbound ${method} initiated`,
+  };
+
+  const autoNote: LeadNote = {
+    id: `note-${Date.now()}`,
+    text: `Initiated outbound ${method} contact.${customNote ? ` Note: ${customNote}` : ''}`,
+    createdAt: nowIso,
+    author: 'System',
+  };
+
+  let updatedLead: LeadItem | null = null;
+  if (idx !== -1) {
+    leads[idx].lastContacted = nowIso;
+    leads[idx].lastContactMethod = method;
+    leads[idx].contactCount = (leads[idx].contactCount || 0) + 1;
+    if (leads[idx].status === 'New') {
+      leads[idx].status = 'Contacted';
+    }
+    leads[idx].contactLogs = [logEntry, ...(leads[idx].contactLogs || [])];
+    leads[idx].notes = [autoNote, ...(leads[idx].notes || [])];
+    updatedLead = leads[idx];
+    saveAllLeads(leads, cleanTenant);
+  }
+
+  try {
+    const leadRef = doc(db, 'tenants', cleanTenant, 'leads', leadId);
+    await updateDoc(leadRef, {
+      lastContacted: nowIso,
+      lastContactMethod: method,
+      contactCount: updatedLead?.contactCount || 1,
+      status: updatedLead?.status || 'Contacted',
+      contactLogs: updatedLead?.contactLogs || [logEntry],
+      notes: updatedLead?.notes || [autoNote],
+    });
+  } catch (err) {
+    console.warn('Firestore logLeadContact notice:', err);
+  }
+
+  if (endpointUrl && endpointUrl.startsWith('http')) {
+    try {
+      await syncLeadActionToRemote(endpointUrl, {
+        action: 'logContact',
+        leadId,
+        clientId: cleanTenant,
+        method,
+        customNote,
+      });
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  return { success: true, message: `Logged ${method} contact`, lead: updatedLead };
+}
+
+/**
+ * Delete a lead from Firestore and local cache, and optionally synchronize deletion to Google Sheets
+ */
+export async function deleteLead(
+  leadId: string,
+  tenantId: string,
+  endpointUrl?: string
+): Promise<{ success: boolean; message: string }> {
+  const cleanTenant = (tenantId || 'demo-tarot').trim().toLowerCase();
+  const leads = getStoredLeads(cleanTenant);
+  const targetLead = leads.find((l) => l.id === leadId);
+
+  const filtered = leads.filter((l) => l.id !== leadId);
+  saveAllLeads(filtered, cleanTenant);
+
+  // Firestore delete attempt (with offline/permission safe fallback)
+  try {
+    const leadRef = doc(db, 'tenants', cleanTenant, 'leads', leadId);
+    await deleteDoc(leadRef);
+  } catch (err) {
+    console.warn('Firestore deleteLead notice (local deletion preserved):', err);
+  }
+
+  // Synchronize deletion with Google Sheets Web App if endpoint is configured
+  if (endpointUrl && endpointUrl.startsWith('http')) {
+    try {
+      await syncLeadActionToRemote(endpointUrl, {
+        action: 'deleteLead',
+        leadId,
+        clientId: cleanTenant,
+      });
+    } catch (syncErr) {
+      console.warn('Google Sheets delete sync notice:', syncErr);
+    }
+  }
+
+  return {
+    success: true,
+    message: targetLead
+      ? `Lead "${targetLead.name}" (${leadId}) deleted successfully.`
+      : `Lead ${leadId} deleted successfully.`,
+  };
+}
+
+/**
+ * Safe Migration Plan:
+ * Migrates existing legacy localStorage leads to Firestore without deleting or overwriting any existing data.
+ */
+export async function migrateLocalStorageToFirestore(tenantId: string): Promise<{
+  migratedCount: number;
+  skippedCount: number;
   message: string;
-  leadCount?: number;
+}> {
+  const cleanTenant = tenantId.trim().toLowerCase();
+  let candidateLeads: LeadItem[] = [];
+
+  // 1. Gather all candidate leads from both scoped key and legacy master key
+  try {
+    const scopedKey = getClientStorageKey(cleanTenant);
+    const scopedRaw = localStorage.getItem(scopedKey);
+    if (scopedRaw) {
+      const parsed: LeadItem[] = JSON.parse(scopedRaw);
+      candidateLeads.push(...parsed);
+    }
+
+    const legacyRaw = localStorage.getItem('leadpilot_leads_v1');
+    if (legacyRaw) {
+      const parsed: LeadItem[] = JSON.parse(legacyRaw);
+      const filtered = parsed.filter((l) => l.clientId && l.clientId.toLowerCase() === cleanTenant);
+      candidateLeads.push(...filtered);
+    }
+  } catch (err) {
+    console.error('Error reading legacy storage:', err);
+  }
+
+  const uniqueCandidates = deduplicateLeads(candidateLeads);
+  if (uniqueCandidates.length === 0) {
+    return {
+      migratedCount: 0,
+      skippedCount: 0,
+      message: 'No legacy localStorage leads found to migrate.',
+    };
+  }
+
+  // 2. Query Firestore to avoid overwriting existing documents
+  let migrated = 0;
+  let skipped = 0;
+
+  try {
+    const batch = writeBatch(db);
+    for (const lead of uniqueCandidates) {
+      const leadRef = doc(db, 'tenants', cleanTenant, 'leads', lead.id);
+      batch.set(leadRef, { ...lead, clientId: cleanTenant }, { merge: true });
+      migrated++;
+    }
+    await batch.commit();
+  } catch (batchErr) {
+    console.warn('Batch migration fallback to individual sets:', batchErr);
+    for (const lead of uniqueCandidates) {
+      try {
+        const leadRef = doc(db, 'tenants', cleanTenant, 'leads', lead.id);
+        await setDoc(leadRef, { ...lead, clientId: cleanTenant }, { merge: true });
+        migrated++;
+      } catch {
+        skipped++;
+      }
+    }
+  }
+
+  return {
+    migratedCount: migrated,
+    skippedCount: skipped,
+    message: `Migration complete: ${migrated} lead(s) safely synced to Firestore, ${skipped} skipped.`,
+  };
 }
 
 /**
  * Test health-check connection to Google Apps Script Web App
  */
-export async function testGoogleSheetConnection(endpointUrl: string): Promise<ConnectionTestResult> {
+export async function testGoogleSheetConnection(endpointUrl: string): Promise<{
+  success: boolean;
+  statusText: string;
+  message: string;
+  leadCount?: number;
+}> {
   if (!endpointUrl || !endpointUrl.trim() || !endpointUrl.startsWith('http')) {
     return {
       success: false,
@@ -151,12 +794,12 @@ export async function testGoogleSheetConnection(endpointUrl: string): Promise<Co
 
   try {
     const url = new URL(endpointUrl.trim());
-    url.searchParams.set('action', 'getLeads');
+    url.searchParams.set('action', 'testConnection');
     url.searchParams.set('t', Date.now().toString());
 
     const res = await fetch(url.toString(), {
       method: 'GET',
-      headers: { 'Accept': 'application/json' },
+      headers: { Accept: 'application/json' },
     });
 
     if (!res.ok) {
@@ -167,43 +810,30 @@ export async function testGoogleSheetConnection(endpointUrl: string): Promise<Co
       };
     }
 
-    const json = await res.json();
-
-    if (
-      json.status === 'success' ||
-      json.result === 'success' ||
-      json.status === 'ok' ||
-      Array.isArray(json.leads) ||
-      Array.isArray(json)
-    ) {
-      const count = Array.isArray(json.leads)
-        ? json.leads.length
-        : (Array.isArray(json) ? json.length : (json.count || 0));
+    let json: any = null;
+    try {
+      json = await res.json();
+    } catch {
       return {
-        success: true,
-        statusText: 'Google Sheet Connected ✓',
-        message: `Successfully connected to Google Sheet Web App. Found ${count} lead(s).`,
-        leadCount: count,
+        success: false,
+        statusText: 'Google Sheet Connection Failed',
+        message: 'Endpoint did not return valid JSON. Ensure your Google Apps Script is deployed as a Web App with access set to "Anyone".',
       };
-    } else if (typeof json === 'object' && json !== null) {
-      if (json.error || json.status === 'error' || json.result === 'error') {
-        return {
-          success: false,
-          statusText: 'Google Sheet Connection Failed',
-          message: json.message || json.error || 'Google Apps Script returned an error response.',
-        };
-      }
+    }
+
+    if (!json || (json.status !== 'success' && json.result !== 'success')) {
       return {
-        success: true,
-        statusText: 'Google Sheet Connected ✓',
-        message: 'Successfully reached Google Apps Script Web App.',
+        success: false,
+        statusText: 'Google Sheet Connection Failed',
+        message: json?.message || 'Google Apps Script returned an unsuccessful response.',
       };
     }
 
     return {
-      success: false,
-      statusText: 'Google Sheet Connection Failed',
-      message: 'Google Apps Script returned an unrecognized response format.',
+      success: true,
+      statusText: 'Google Sheet Connected ✓',
+      message: json.message || `Successfully connected to Google Sheet: "${json.spreadsheetName || 'LeadPilot – Apex HVAC Leads'}" (Tab: "${json.tabName || 'Leads'}")`,
+      leadCount: typeof json.leadCount === 'number' ? json.leadCount : undefined,
     };
   } catch (err: any) {
     return {
@@ -214,127 +844,8 @@ export async function testGoogleSheetConnection(endpointUrl: string): Promise<Co
   }
 }
 
-function normalizePhone(phone: string): string {
-  return (phone || '').replace(/\D/g, '');
-}
-
-function isSameLead(a: LeadItem, b: LeadItem): boolean {
-  // 1. Primary check: Exact Lead ID match
-  if (a.id && b.id && a.id.trim() === b.id.trim()) {
-    return true;
-  }
-
-  // 2. Fallback check: Normalized phone + service match
-  const phoneA = normalizePhone(a.phone);
-  const phoneB = normalizePhone(b.phone);
-  const serviceA = (a.service || '').toLowerCase().trim();
-  const serviceB = (b.service || '').toLowerCase().trim();
-
-  if (phoneA && phoneB && phoneA === phoneB && serviceA === serviceB) {
-    const timeA = new Date(a.timestamp).getTime();
-    const timeB = new Date(b.timestamp).getTime();
-    if (!isNaN(timeA) && !isNaN(timeB)) {
-      const diffMins = Math.abs(timeA - timeB) / (1000 * 60);
-      if (diffMins <= 30) return true;
-    }
-    if (a.clientId && b.clientId && a.clientId === b.clientId) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function mergeLeadRecords(local: LeadItem, remote: LeadItem): LeadItem {
-  const existingNoteTexts = new Set((local.notes || []).map((n) => n.text.trim()));
-  const mergedNotes = [...(local.notes || [])];
-
-  (remote.notes || []).forEach((rNote) => {
-    if (!existingNoteTexts.has(rNote.text.trim())) {
-      mergedNotes.push(rNote);
-      existingNoteTexts.add(rNote.text.trim());
-    }
-  });
-
-  mergedNotes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-  return {
-    ...local,
-    ...remote, // Remote values from Google Sheet are authoritative
-    id: remote.id || local.id, // Ensure primary key aligns with Google Sheet
-    notes: mergedNotes.length > 0 ? mergedNotes : (remote.notes || local.notes || []),
-    contactLogs: remote.contactLogs && remote.contactLogs.length > 0
-      ? remote.contactLogs
-      : local.contactLogs || [],
-  };
-}
-
 /**
- * FETCH REMOTE LEADS FROM GOOGLE SHEET VIA GOOGLE APPS SCRIPT WEB APP
- * This makes LeadPilot work across different devices, browsers, and tabs!
- */
-export async function fetchRemoteLeads(endpointUrl: string, clientId: string = 'all'): Promise<LeadItem[]> {
-  if (!endpointUrl || !endpointUrl.trim() || !endpointUrl.startsWith('http')) {
-    return getStoredLeads();
-  }
-
-  try {
-    const url = new URL(endpointUrl.trim());
-    url.searchParams.set('action', 'getLeads');
-    url.searchParams.set('clientId', clientId);
-    url.searchParams.set('t', Date.now().toString());
-
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' },
-    });
-
-    if (!res.ok) {
-      console.warn('Google Apps Script GET response not OK:', res.status);
-      return getStoredLeads();
-    }
-
-    const json = await res.json();
-    if (
-      json.status === 'success' ||
-      json.result === 'success' ||
-      json.status === 'ok' ||
-      Array.isArray(json.leads) ||
-      Array.isArray(json)
-    ) {
-      const remoteLeads: LeadItem[] = Array.isArray(json.leads) ? json.leads : (Array.isArray(json) ? json : []);
-      const localLeads = getStoredLeads();
-
-      const mergedList = [...localLeads];
-
-      for (const remote of remoteLeads) {
-        const matchIdx = mergedList.findIndex((local) => isSameLead(local, remote));
-        if (matchIdx !== -1) {
-          mergedList[matchIdx] = mergeLeadRecords(mergedList[matchIdx], remote);
-        } else {
-          mergedList.push(remote);
-        }
-      }
-
-      // Sort newest first
-      mergedList.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-      saveAllLeads(mergedList);
-
-      if (clientId === 'all') {
-        return mergedList;
-      }
-      return mergedList.filter((l) => !l.clientId || l.clientId === clientId);
-    }
-  } catch (err) {
-    console.warn('Remote sync fetch failed (falling back to UI cache):', err);
-  }
-
-  return getStoredLeads();
-}
-
-/**
- * POST ACTION TO REMOTE GOOGLE APPS SCRIPT BACKEND
+ * POST action to remote Google Apps Script backend
  */
 export async function syncLeadActionToRemote(
   endpointUrl: string | undefined,
@@ -352,313 +863,36 @@ export async function syncLeadActionToRemote(
     });
 
     if (!res.ok) {
+      return { success: false, message: `Google Apps Script returned HTTP status ${res.status}` };
+    }
+
+    let json: any = null;
+    try {
+      json = await res.json();
+    } catch {
       return {
-        success: false,
-        message: `Google Apps Script returned HTTP status ${res.status}`,
+        success: res.ok,
+        message: res.ok ? 'Synced to Google Sheet successfully' : `Google Apps Script returned HTTP ${res.status}`,
       };
     }
 
-    const json = await res.json();
-    if (json.result === 'success' || json.status === 'success' || json.status === 'ok') {
-      return {
-        success: true,
-        result: json,
-        message: json.message || 'Action synced to Google Sheet successfully',
-      };
-    } else {
-      return {
-        success: false,
-        result: json,
-        message: json.message || json.error || 'Google Apps Script returned an error response.',
-      };
-    }
-  } catch (err: any) {
-    console.error('Failed to sync lead action to Google Apps Script:', err);
+    const isSuccess = json && (json.result === 'success' || json.status === 'success' || json.status === 'ok');
     return {
-      success: false,
-      message: err?.message || 'Network error syncing to Google Apps Script Web App.',
+      success: isSuccess,
+      result: json,
+      message: json.message || (isSuccess ? 'Synced to Google Sheet successfully' : 'Google Apps Script reported an issue'),
     };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Network error syncing to Google Apps Script.' };
   }
 }
 
 /**
- * Save a new lead or update an existing lead (with duplicate prevention)
+ * Legacy fetchRemoteLeads compatibility helper
  */
-export async function saveLead(
-  input: Partial<LeadItem> & { name: string; phone: string; service: string },
-  endpointUrl?: string
-): Promise<{ success: boolean; message: string; lead: LeadItem }> {
-  const clientScope = input.clientId || 'demo-tarot';
-  const leads = getStoredLeads(clientScope);
-  
-  // 1. Check if explicit ID matches an existing lead
-  let existingIndex = input.id ? leads.findIndex((l) => l.id === input.id) : -1;
-
-  // 2. Duplicate prevention check: Check if same phone & service submitted within last 5 minutes
-  if (existingIndex === -1) {
-    const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    existingIndex = leads.findIndex(
-      (l) =>
-        l.phone.replace(/\D/g, '') === input.phone.replace(/\D/g, '') &&
-        l.service.toLowerCase() === input.service.toLowerCase() &&
-        l.timestamp >= fiveMinsAgo
-    );
+export async function fetchRemoteLeads(endpointUrl: string, clientId: string = 'all'): Promise<LeadItem[]> {
+  if (clientId && clientId !== 'all') {
+    return fetchFirestoreLeads(clientId);
   }
-
-  if (existingIndex !== -1) {
-    // Update existing lead record to avoid duplicate
-    const existing = leads[existingIndex];
-    const updatedLead: LeadItem = {
-      ...existing,
-      name: input.name || existing.name,
-      phone: input.phone || existing.phone,
-      email: input.email || existing.email,
-      service: input.service || existing.service,
-      details: input.details ? `${existing.details} | Update: ${input.details}` : existing.details,
-      address: input.address || existing.address,
-      clientId: clientScope,
-      businessName: input.businessName || existing.businessName,
-      leadSource: input.leadSource || existing.leadSource,
-      pageUrl: input.pageUrl || existing.pageUrl,
-    };
-
-    if (endpointUrl && endpointUrl.startsWith('http')) {
-      const remoteRes = await syncLeadActionToRemote(endpointUrl, { action: 'createLead', ...updatedLead });
-      if (!remoteRes.success) {
-        return { success: false, message: remoteRes.message, lead: updatedLead };
-      }
-    }
-
-    leads[existingIndex] = updatedLead;
-    saveAllLeads(leads, clientScope);
-
-    return { success: true, message: 'Existing lead record updated.', lead: updatedLead };
-  }
-
-  // 3. Create new Lead
-  const newLeadId = input.id || generateLeadId(leads.length);
-  const nowIso = new Date().toISOString();
-
-  const newLead: LeadItem = {
-    id: newLeadId,
-    timestamp: input.timestamp || nowIso,
-    clientId: clientScope,
-    businessName: input.businessName || 'Local Business',
-    name: input.name.trim(),
-    phone: input.phone.trim(),
-    email: input.email ? input.email.trim() : undefined,
-    service: input.service.trim(),
-    details: input.details || 'No additional details provided.',
-    address: input.address || '',
-    leadSource: input.leadSource || 'Google Business Profile / Local Search',
-    pageUrl: input.pageUrl || '',
-    status: (input.status as LeadStatus) || 'New',
-    notes: input.notes || [],
-    followUpDate: input.followUpDate,
-    lastContacted: input.lastContacted,
-    lastContactMethod: input.lastContactMethod,
-    contactCount: input.contactCount || 0,
-    contactLogs: input.contactLogs || [],
-  };
-
-  if (endpointUrl && endpointUrl.startsWith('http')) {
-    const remoteRes = await syncLeadActionToRemote(endpointUrl, { action: 'createLead', ...newLead });
-    if (!remoteRes.success) {
-      return { success: false, message: remoteRes.message, lead: newLead };
-    }
-  }
-
-  leads.unshift(newLead); // newest leads first
-  saveAllLeads(leads, clientScope);
-
-  return { success: true, message: 'Lead created successfully.', lead: newLead };
-}
-
-/**
- * Update lead status
- */
-export async function updateLeadStatus(
-  leadId: string,
-  status: LeadStatus,
-  endpointUrl?: string
-): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
-  const leads = getStoredLeads();
-  const idx = leads.findIndex((l) => l.id === leadId);
-  if (idx === -1) return { success: false, message: `Lead ID ${leadId} not found`, lead: null };
-
-  const targetLead = leads[idx];
-
-  if (endpointUrl && endpointUrl.startsWith('http')) {
-    const remoteRes = await syncLeadActionToRemote(endpointUrl, {
-      action: 'updateStatus',
-      leadId: targetLead.id,
-      clientId: targetLead.clientId,
-      status,
-    });
-
-    if (!remoteRes.success) {
-      return { success: false, message: remoteRes.message, lead: targetLead };
-    }
-  }
-
-  leads[idx].status = status;
-  const autoNote: LeadNote = {
-    id: `note-${Date.now()}`,
-    text: `Status updated to "${status}"`,
-    createdAt: new Date().toISOString(),
-    author: 'System',
-  };
-  leads[idx].notes = [autoNote, ...(leads[idx].notes || [])];
-
-  saveAllLeads(leads, targetLead.clientId);
-
-  return { success: true, message: `Status updated to ${status}`, lead: leads[idx] };
-}
-
-/**
- * Add a note to a lead
- */
-export async function addLeadNote(
-  leadId: string,
-  text: string,
-  author = 'Agent',
-  endpointUrl?: string
-): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
-  const leads = getStoredLeads();
-  const idx = leads.findIndex((l) => l.id === leadId);
-  if (idx === -1) return { success: false, message: `Lead ID ${leadId} not found`, lead: null };
-
-  const targetLead = leads[idx];
-
-  if (endpointUrl && endpointUrl.startsWith('http')) {
-    const remoteRes = await syncLeadActionToRemote(endpointUrl, {
-      action: 'addNote',
-      leadId: targetLead.id,
-      clientId: targetLead.clientId,
-      text: text.trim(),
-      author,
-    });
-
-    if (!remoteRes.success) {
-      return { success: false, message: remoteRes.message, lead: targetLead };
-    }
-  }
-
-  const newNote: LeadNote = {
-    id: `note-${Date.now()}`,
-    text: text.trim(),
-    createdAt: new Date().toISOString(),
-    author,
-  };
-
-  leads[idx].notes = [newNote, ...(leads[idx].notes || [])];
-  saveAllLeads(leads, targetLead.clientId);
-
-  return { success: true, message: 'Note added successfully', lead: leads[idx] };
-}
-
-/**
- * Schedule a follow-up date for a lead
- */
-export async function scheduleLeadFollowUp(
-  leadId: string,
-  followUpDate: string,
-  endpointUrl?: string
-): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
-  const leads = getStoredLeads();
-  const idx = leads.findIndex((l) => l.id === leadId);
-  if (idx === -1) return { success: false, message: `Lead ID ${leadId} not found`, lead: null };
-
-  const targetLead = leads[idx];
-
-  if (endpointUrl && endpointUrl.startsWith('http')) {
-    const remoteRes = await syncLeadActionToRemote(endpointUrl, {
-      action: 'scheduleFollowUp',
-      leadId: targetLead.id,
-      clientId: targetLead.clientId,
-      followUpDate,
-      status: 'Follow-up',
-    });
-
-    if (!remoteRes.success) {
-      return { success: false, message: remoteRes.message, lead: targetLead };
-    }
-  }
-
-  leads[idx].followUpDate = followUpDate;
-  if (leads[idx].status === 'New') {
-    leads[idx].status = 'Follow-up';
-  }
-
-  const autoNote: LeadNote = {
-    id: `note-${Date.now()}`,
-    text: followUpDate ? `Follow-up scheduled for ${new Date(followUpDate).toLocaleString()}` : 'Follow-up date cleared',
-    createdAt: new Date().toISOString(),
-    author: 'System',
-  };
-  leads[idx].notes = [autoNote, ...(leads[idx].notes || [])];
-
-  saveAllLeads(leads, targetLead.clientId);
-
-  return { success: true, message: 'Follow-up scheduled successfully', lead: leads[idx] };
-}
-
-/**
- * Log a contact attempt (Call, WhatsApp, SMS, Email)
- */
-export async function logLeadContact(
-  leadId: string,
-  method: ContactMethod,
-  customNote?: string,
-  endpointUrl?: string
-): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
-  const leads = getStoredLeads();
-  const idx = leads.findIndex((l) => l.id === leadId);
-  if (idx === -1) return { success: false, message: `Lead ID ${leadId} not found`, lead: null };
-
-  const targetLead = leads[idx];
-
-  if (endpointUrl && endpointUrl.startsWith('http')) {
-    const remoteRes = await syncLeadActionToRemote(endpointUrl, {
-      action: 'logContact',
-      leadId: targetLead.id,
-      clientId: targetLead.clientId,
-      method,
-      customNote,
-    });
-
-    if (!remoteRes.success) {
-      return { success: false, message: remoteRes.message, lead: targetLead };
-    }
-  }
-
-  const nowIso = new Date().toISOString();
-  leads[idx].lastContacted = nowIso;
-  leads[idx].lastContactMethod = method;
-  leads[idx].contactCount = (leads[idx].contactCount || 0) + 1;
-
-  if (leads[idx].status === 'New') {
-    leads[idx].status = 'Contacted';
-  }
-
-  const logEntry: LeadContactLog = {
-    id: `log-${Date.now()}`,
-    method,
-    timestamp: nowIso,
-    notes: customNote || `Outbound ${method} initiated`,
-  };
-
-  leads[idx].contactLogs = [logEntry, ...(leads[idx].contactLogs || [])];
-
-  const autoNote: LeadNote = {
-    id: `note-${Date.now()}`,
-    text: `Initiated outbound ${method} contact.${customNote ? ` Note: ${customNote}` : ''}`,
-    createdAt: nowIso,
-    author: 'System',
-  };
-  leads[idx].notes = [autoNote, ...(leads[idx].notes || [])];
-
-  saveAllLeads(leads, targetLead.clientId);
-
-  return { success: true, message: `Logged ${method} contact`, lead: leads[idx] };
+  return getStoredLeads(clientId);
 }

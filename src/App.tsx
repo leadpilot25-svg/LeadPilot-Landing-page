@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { INDUSTRY_PRESETS } from './presets/industryPresets';
-import { CLIENT_PRESETS, DEMO_CLIENT_CONFIG } from './presets/clientPresets';
+import { CLIENT_PRESETS, DEMO_CLIENT_CONFIG, APEX_HVAC_CLIENT_CONFIG } from './presets/clientPresets';
 import { ClientConfig } from './types';
 import { HeaderBar } from './components/HeaderBar';
 import { ConfigEditorDrawer } from './components/ConfigEditorDrawer';
@@ -19,30 +19,23 @@ import {
 import { ArrowLeft, Monitor, Smartphone, ShieldCheck, Sparkles } from 'lucide-react';
 
 const INITIAL_CLIENT_CONFIGS: Record<string, ClientConfig> = {
+  'client-apex-hvac': JSON.parse(JSON.stringify(APEX_HVAC_CLIENT_CONFIG)),
+  'demo-hvac': JSON.parse(JSON.stringify(APEX_HVAC_CLIENT_CONFIG)),
   'demo-tarot': JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
-  'demo-hvac': {
-    ...JSON.parse(JSON.stringify(INDUSTRY_PRESETS['hvac'])),
-    clientId: 'apex-hvac-kochi',
-    businessName: 'Apex Heating & Cooling',
-    cityStateZip: 'Kochi, Kerala',
-    serviceArea: 'Kochi & Ernakulam',
-    phone: '+91 98765 43210',
-    email: 'contact@apexhvac.com',
-  },
   'demo-plumbing': {
     ...JSON.parse(JSON.stringify(INDUSTRY_PRESETS['plumbing'])),
-    clientId: 'prodrain-plumbing-kochi',
+    clientId: 'client-prodrain-plumbing',
     businessName: 'ProDrain Plumbing Services',
-    cityStateZip: 'Kochi, Kerala',
-    serviceArea: 'Kochi & Nearby Areas',
-    phone: '+91 98765 12345',
-    email: 'info@prodrainplumbing.com',
+    cityStateZip: 'Dallas, TX',
+    serviceArea: 'Dallas & Fort Worth Metro',
+    phone: '+1 (555) 389-1122',
+    email: 'info@prodrainplumbing-demo.com',
   },
 };
 
 function getClientConfigForEnvClientId(envClientId: string): { key: string; config: ClientConfig } {
   if (!envClientId) {
-    return { key: 'demo-tarot', config: JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)) };
+    return { key: 'client-apex-hvac', config: JSON.parse(JSON.stringify(APEX_HVAC_CLIENT_CONFIG)) };
   }
 
   // 1. Direct match on key in CLIENT_PRESETS or INITIAL_CLIENT_CONFIGS
@@ -70,9 +63,9 @@ function getClientConfigForEnvClientId(envClientId: string): { key: string; conf
     }
   }
 
-  // 3. Fallback: clone DEMO_CLIENT_CONFIG with requested envClientId
+  // 3. Fallback: clone APEX_HVAC_CLIENT_CONFIG with requested envClientId
   const customConfig: ClientConfig = {
-    ...JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
+    ...JSON.parse(JSON.stringify(APEX_HVAC_CLIENT_CONFIG)),
     clientId: envClientId,
     businessName: envClientId.replace(/[-_]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
   };
@@ -102,21 +95,39 @@ export default function App() {
   });
 
   const [activePresetKey, setActivePresetKey] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const clientParam = params.get('client') || params.get('clientId');
+      if (clientParam) {
+        if (clientParam.includes('tarot')) return 'demo-tarot';
+        if (clientParam.includes('plumb')) return 'demo-plumbing';
+        return 'client-apex-hvac';
+      }
+    }
     if (IS_LANDING_DEPLOYMENT || IS_CRM_DEPLOYMENT) {
       return getClientConfigForEnvClientId(CLIENT_ID_ENV).key;
     }
-    return 'demo-tarot';
+    return 'client-apex-hvac';
   });
 
   const [currentConfig, setCurrentConfig] = useState<ClientConfig>(() => {
     if (IS_LANDING_DEPLOYMENT || IS_CRM_DEPLOYMENT) {
       return getClientConfigForEnvClientId(CLIENT_ID_ENV).config;
     }
-    return clientConfigs['demo-tarot'] || DEMO_CLIENT_CONFIG;
+    return clientConfigs['client-apex-hvac'] || clientConfigs['demo-hvac'] || APEX_HVAC_CLIENT_CONFIG;
   });
 
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'preview' | 'leadpilot' | 'exporter'>('preview');
+  const [viewMode, setViewMode] = useState<'preview' | 'leadpilot' | 'exporter'>(() => {
+    try {
+      if (typeof window !== 'undefined' && sessionStorage.getItem('leadpilot_restore_onboarding_modal') === 'true') {
+        return 'leadpilot';
+      }
+    } catch {
+      // ignore storage access errors
+    }
+    return 'preview';
+  });
   const [appMode, setAppMode] = useState<'development' | 'client'>('development');
 
   // Persist master client configs to localStorage in dev mode

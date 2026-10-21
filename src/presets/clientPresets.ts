@@ -131,6 +131,178 @@ export const DEMO_CLIENT_CONFIG: ClientConfig = {
   hasEmergencyService: false,
 };
 
+export const APEX_HVAC_CLIENT_CONFIG: ClientConfig = {
+  clientId: 'client-apex-hvac',
+  leadSource: 'Google Business Profile / Local Search',
+  googleBusinessProfileUrl: 'https://maps.google.com/?q=Apex+Heating+and+Cooling+Dallas+TX',
+  businessPhone: '+1 (555) 247-4822',
+  serviceArea: 'Dallas, Fort Worth, Arlington & Metro Area',
+
+  industry: 'HVAC - Heating & Air Conditioning',
+  businessName: 'Apex Heating & Cooling',
+  websiteUrl: 'https://apexhvac-demo.local',
+  tagline: 'Fast, Reliable 24/7 Heating & Air Conditioning Services',
+  footerDescription: 'Licensed, insured, and certified HVAC contractors providing 24/7 residential and commercial heating and cooling services across Dallas-Fort Worth.',
+  heroTitle: 'Fast, Reliable AC & Heating Repair in Dallas-Fort Worth',
+  heroSubheadline: '24/7 emergency repairs, seasonal tune-ups, and energy-efficient heat pump installations by certified technicians with upfront flat-rate pricing.',
+  heroStatusText: '24/7 EMERGENCY TECHNICIANS AVAILABLE NOW',
+  heroSecondaryCtaText: 'Call (555) 247-4822',
+  leadFormStatusText: 'FAST RESPONSE GUARANTEE (UNDER 15 MIN)',
+  leadFormTrustText: '🔒 Your information is private and never shared. Direct local dispatch.',
+  finalCtaHeading: 'Need Immediate Cooling or Heating Assistance?',
+  finalCtaDescription: 'Submit an enquiry below or call directly for same-day dispatch from our certified local team.',
+  finalCtaButtonText: 'Request Fast Service',
+  servicesEyebrow: 'OUR RESIDENTIAL & COMMERCIAL SERVICES',
+  servicesHeading: 'Complete Heating & Air Conditioning Solutions',
+  servicesDescription: 'From emergency cooling breakdowns on hot summer days to high-efficiency system installations, our team handles it all with guaranteed workmanship.',
+  whyUsHeading: 'Why Homeowners Choose Apex Heating & Cooling',
+  serviceAreaHeading: 'Serving Dallas, Fort Worth & Surrounding Communities',
+  serviceAreaDescription: 'Local technicians stationed across Dallas, Plano, Arlington, Irving, and Fort Worth for rapid same-day response.',
+  yearsInBusiness: 14,
+  jobsCompleted: '4,800+',
+  averageRating: 4.9,
+  reviewCount: 384,
+
+  phone: '+1 (555) 247-4822',
+  phoneRaw: '+15552474822',
+  email: 'service@apexhvac-demo.com',
+  address: '4220 Industrial Blvd, Suite 104',
+  cityStateZip: 'Dallas, TX 75207',
+  businessHours: '24/7 Emergency Service • Mon-Sat 7:00 AM - 8:00 PM',
+  emergencyAvailability: '24/7 Emergency Dispatch Available',
+  whatsAppNumber: '+15552474822',
+  defaultCountryCode: '+1',
+  whatsAppMessageTemplate: 'Hi {name}, this is Apex Heating & Cooling regarding your {service} enquiry. We have a technician available in your area. What time works best for an estimate?',
+
+  primaryColor: '#0F172A',
+  accentColor: '#2563EB',
+  fontFamily: 'Inter, sans-serif',
+  logoUrl: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=200&auto=format&fit=crop&q=80',
+  heroImageUrl: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=1200&auto=format&fit=crop&q=80',
+  aboutImageUrl: 'https://images.unsplash.com/photo-1581094288338-2314dddb7ece?w=800&auto=format&fit=crop&q=80',
+
+  googleMapsLink: 'https://maps.google.com/?q=Dallas,TX',
+  googleMapsEmbedUrl: '',
+  googleReviewLink: '',
+  formEndpoint: ((import.meta as any).env?.VITE_FORM_ENDPOINT || '').trim(),
+  googleAnalyticsId: '',
+  facebookPixelId: '',
+  googleTagManagerId: '',
+
+  socialLinks: {},
+
+  seo: {
+    title: 'Apex Heating & Cooling | 24/7 AC & Heating Repair in Dallas, TX',
+    metaDescription: 'Emergency AC repair, heating maintenance, and heat pump installation in Dallas-Fort Worth. Licensed HVAC technicians with upfront pricing.',
+    keywords: ['HVAC repair Dallas', 'Emergency AC service', 'Heat pump replacement DFW', 'Air conditioning tune-up'],
+    ogImageUrl: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=1200&auto=format&fit=crop&q=80',
+    canonicalUrl: '',
+  },
+
+  serviceAreas: ['Dallas', 'Fort Worth', 'Arlington', 'Plano', 'Irving', 'Garland', 'Frisco', 'McKinney'],
+
+  services: [
+    {
+      id: 'emergency-ac-repair',
+      title: 'Emergency AC Repair & Diagnostics',
+      tagline: 'Fast restoration when your cooling fails',
+      description: 'Same-day diagnostics for refrigerant leaks, frozen coils, failing compressors, and broken blower motors.',
+      iconName: 'Snowflake',
+      features: ['Same-Day Dispatch', 'Comprehensive Diagnostic Test', 'Refrigerant & Coil Repair', 'Written Upfront Pricing'],
+      popular: true,
+    },
+    {
+      id: 'heat-pump-installation',
+      title: 'Heat Pump & System Installation',
+      tagline: 'Modern high-efficiency cooling & heating',
+      description: 'Professional sizing and installation of modern heat pumps and central AC systems with high SEER2 energy ratings.',
+      iconName: 'Flame',
+      features: ['Load Calculation Sizing', 'High SEER2 Efficiency', 'Warranty Protection', 'Old Unit Haul-Away'],
+    },
+    {
+      id: 'seasonal-tuneup',
+      title: 'Seasonal AC & Heating Tune-Up',
+      tagline: 'Prevent costly summer breakdowns',
+      description: 'Comprehensive 24-point inspection, coil cleaning, electrical safety checks, and thermostat calibration.',
+      iconName: 'Zap',
+      features: ['24-Point Inspection', 'Electrical & Capacitor Check', 'Condensate Drain Flush', 'Filter Replacement'],
+    },
+    {
+      id: 'duct-air-quality',
+      title: 'Air Quality & Duct Services',
+      tagline: 'Breathe cleaner air in every room',
+      description: 'Air duct sanitization, UV air purifiers, and filtration upgrades to eliminate dust, allergens, and humidity issues.',
+      iconName: 'Droplets',
+      features: ['Duct Leak Inspection', 'HEPA Filtration Upgrades', 'UV Purifier Installation', 'Humidity Balance'],
+    },
+  ],
+
+  whyUsItems: [
+    { title: 'Upfront Flat-Rate Pricing', description: 'Clear written estimate before any work begins. Zero surprise travel charges or hidden fees.' },
+    { title: '24/7 Same-Day Emergency Dispatch', description: 'Technicians on call around the clock with fully stocked trucks ready to solve issues in one visit.' },
+    { title: 'Licensed & EPA-Certified Technicians', description: 'Experienced, background-checked master technicians backed by our 100% satisfaction guarantee.' },
+  ],
+
+  faqs: [
+    {
+      question: 'How quickly can a technician reach my home in Dallas-Fort Worth?',
+      answer: 'For emergency calls, we typically dispatch a local technician to your location within 60 to 90 minutes. For standard appointments, we offer convenient 2-hour arrival windows.',
+    },
+    {
+      question: 'Do you provide written estimates before starting work?',
+      answer: 'Yes, always. We diagnose the issue, explain the options in plain language, and give you a guaranteed flat-rate price before turning a single wrench.',
+    },
+    {
+      question: 'What should I do if my AC is blowing warm air or freezing up?',
+      answer: 'Turn the thermostat off immediately to prevent compressor burnout, check your air filter, and submit an emergency enquiry or call us at (555) 247-4822.',
+    },
+  ],
+
+  testimonials: [
+    {
+      id: 'test-1',
+      author: 'Marcus Vance',
+      location: 'Dallas, TX',
+      service: 'Emergency AC Repair',
+      rating: 5,
+      comment: 'Our AC gave out during a 102-degree weekend. Apex had a technician at our home in under an hour, replaced the capacitor, and had cold air pumping before dinner. Outstanding service!',
+      verified: true,
+      date: '2026-08-14',
+    },
+    {
+      id: 'test-2',
+      author: 'Elena Rostova',
+      location: 'Plano, TX',
+      service: 'AC Diagnostics & Repair',
+      rating: 5,
+      comment: 'Upfront pricing and honest advice. They could have tried to sell me a whole new unit, but they fixed a simple leak and saved me thousands. Will recommend them to everyone.',
+      verified: true,
+      date: '2026-09-02',
+    },
+  ],
+  stats: [
+    { label: 'Happy DFW Clients', value: '4,800+', sublabel: 'Across North Texas' },
+    { label: 'Average Response Time', value: '45 Min', sublabel: 'Emergency Dispatch' },
+    { label: 'Customer Rating', value: '4.9 ★', sublabel: 'Over 380+ Reviews' },
+    { label: 'Workmanship Warranty', value: '1 Year', sublabel: 'Parts & Labor' },
+  ],
+  trustBadges: [
+    { title: 'Licensed & Insured', subtitle: 'TDLR License #74921', icon: 'ShieldCheck' },
+    { title: 'Upfront Pricing', subtitle: 'No Surprise Invoices', icon: 'DollarSign' },
+    { title: '24/7 Availability', subtitle: 'Day, Night & Weekends', icon: 'Clock' },
+  ],
+  beforeAfter: [],
+
+  heroTrustBadgesEnabled: true,
+  footerEmergencyEnabled: true,
+  sampleDataNoticeEnabled: true,
+  financingEnabled: false,
+  hasEmergencyService: true,
+};
+
 export const CLIENT_PRESETS: Record<string, ClientConfig> = {
+  'demo-hvac': APEX_HVAC_CLIENT_CONFIG,
+  'client-apex-hvac': APEX_HVAC_CLIENT_CONFIG,
   'demo-tarot': DEMO_CLIENT_CONFIG,
 };
+

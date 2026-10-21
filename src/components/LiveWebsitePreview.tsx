@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ClientConfig } from '../types';
-import { saveLead } from '../utils/leadStorage';
+import { saveLead, getStoredLeads } from '../utils/leadStorage';
 import {
   Phone,
   Clock,
@@ -47,7 +47,7 @@ export const LiveWebsitePreview: React.FC<LiveWebsitePreviewProps> = ({ config, 
   // Lead Form State
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
-  const [formError, setFormError] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [submittedPayload, setSubmittedPayload] = useState<any>(null);
 
   const [formData, setFormData] = useState({
@@ -99,43 +99,66 @@ export const LiveWebsitePreview: React.FC<LiveWebsitePreviewProps> = ({ config, 
     const cleanAddress = (formData.address || '').trim().slice(0, 200);
 
     if (!cleanName) {
-      alert('Please enter your full name.');
+      setFormError('Please enter your full name.');
       return;
     }
 
     const rawPhoneDigits = cleanPhone.replace(/\D/g, '');
     if (rawPhoneDigits.length < 7) {
-      alert('Please enter a valid phone number with at least 7 digits.');
+      setFormError('Please enter a valid phone number with at least 7 digits.');
       return;
     }
 
     if (!cleanService) {
-      alert('Please select a service requested.');
+      setFormError('Please select a service requested.');
       return;
     }
 
     setFormSubmitting(true);
-    setFormError(false);
+    setFormError(null);
 
     // Formatted payload structured for Google Apps Script / Google Sheets & LeadPilot mapping
     const endpoint = config.formEndpoint ? config.formEndpoint.trim() : '';
-    
+    const cleanTenant = (config.clientId || 'client-apex-hvac').trim().toLowerCase();
+    const cleanEmail = formData.email ? formData.email.trim() : '';
+
+    // Prevent duplicate submissions within short 2-minute window
+    const stored = getStoredLeads(cleanTenant);
+    const twoMinsAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const isDup = stored.some(
+      (l) =>
+        l.phone.replace(/\D/g, '') === cleanPhone.replace(/\D/g, '') &&
+        l.service.toLowerCase() === cleanService.toLowerCase() &&
+        l.timestamp >= twoMinsAgo
+    );
+
+    if (isDup) {
+      setFormSubmitted(true);
+      return;
+    }
+
+    const formattedDetails = cleanEmail
+      ? (cleanDetails ? `${cleanDetails} | Email: ${cleanEmail}` : `Email: ${cleanEmail}`)
+      : (cleanDetails || 'Website landing page service request.');
+
     const leadPayload = {
-      clientId: config.clientId || `client-${(config.industry || 'trade').toLowerCase().replace(/[^a-z0-9]/g, '')}-01`,
-      businessName: config.businessName,
+      clientId: cleanTenant,
+      businessName: config.businessName || 'Local Business',
       name: cleanName,
       phone: cleanPhone,
+      email: cleanEmail || undefined,
       service: cleanService,
-      details: cleanDetails || 'No additional details provided.',
+      details: formattedDetails,
       address: cleanAddress || config.cityStateZip || '',
-      leadSource: config.leadSource || 'Google Business Profile / Local Search',
+      leadSource: config.leadSource || 'Landing Page Enquiry (Website)',
       pageUrl: typeof window !== 'undefined' ? window.location.href : '',
       timestamp: new Date().toISOString(),
     };
 
     try {
-      // saveLead saves locally and syncs to Google Apps Script Web App remotely if endpoint is provided
-      const savedLead = saveLead(leadPayload, endpoint);
+      // saveLead saves to Firestore and syncs to Google Apps Script Web App remotely if endpoint is provided
+      const res = await saveLead(leadPayload, endpoint);
+      const savedLead = res.lead;
 
       if (!endpoint) {
         // Simulation delay for local Demo Mode
@@ -156,7 +179,7 @@ export const LiveWebsitePreview: React.FC<LiveWebsitePreviewProps> = ({ config, 
       });
     } catch (err) {
       console.error('Lead submission error:', err);
-      setFormError(true);
+      setFormError('Something went wrong while submitting. Please call us directly.');
     } finally {
       setFormSubmitting(false);
     }
@@ -459,7 +482,7 @@ export const LiveWebsitePreview: React.FC<LiveWebsitePreviewProps> = ({ config, 
                 <form onSubmit={handleLeadSubmit} className="space-y-3">
                   {formError && (
                     <div className="bg-rose-50 border border-rose-200 text-rose-900 p-3 rounded-lg text-xs font-medium space-y-2">
-                      <p className="font-bold">Something went wrong. Please call us directly.</p>
+                      <p className="font-bold">{formError}</p>
                       {displayPhone && (
                         <a
                           href={`tel:${displayPhone.replace(/[^0-9+]/g, '')}`}
@@ -491,12 +514,12 @@ export const LiveWebsitePreview: React.FC<LiveWebsitePreviewProps> = ({ config, 
                       required
                       value={formData.name}
                       onChange={handleInputChange}
-                      placeholder="e.g. Anil Kumar"
+                      placeholder={isTarot ? "e.g. Anil Kumar" : "e.g. Marcus Vance"}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-none transition"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number *</label>
                       <input
@@ -505,27 +528,41 @@ export const LiveWebsitePreview: React.FC<LiveWebsitePreviewProps> = ({ config, 
                         required
                         value={formData.phone}
                         onChange={handleInputChange}
-                        placeholder="+91 98765 43210"
+                        placeholder={isTarot ? "+91 98765 43210" : "(555) 247-4822"}
                         className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-none transition"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Service Needed *</label>
-                      <select
-                        name="service"
-                        required
-                        value={formData.service}
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Email Address <span className="text-slate-400 font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
                         onChange={handleInputChange}
+                        placeholder={isTarot ? "name@example.com" : "customer@example.com"}
                         className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-none transition"
-                      >
-                        <option value="">Select Service...</option>
-                        {config.services.map((s) => (
-                          <option key={s.id} value={s.title}>
-                            {s.title}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Service Needed *</label>
+                    <select
+                      name="service"
+                      required
+                      value={formData.service}
+                      onChange={handleInputChange}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-none transition"
+                    >
+                      <option value="">Select Service...</option>
+                      {config.services.map((s) => (
+                        <option key={s.id} value={s.title}>
+                          {s.title}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>

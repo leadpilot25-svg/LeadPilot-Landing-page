@@ -30,10 +30,10 @@ export function getAppTarget(): AppTarget {
   if (envMode === 'landing') return 'landing';
   if (envMode === 'crm') return 'crm';
 
-  // 2. URL Query Parameter (?target=landing | ?target=crm | ?target=dev)
+  // 2. URL Query Parameter (?target=landing | ?mode=landing | ?target=crm | ?mode=crm | ?target=dev)
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
-    const targetParam = params.get('target')?.toLowerCase();
+    const targetParam = (params.get('target') || params.get('mode'))?.toLowerCase();
     if (targetParam === 'landing' || targetParam === 'crm' || targetParam === 'dev') {
       return targetParam as AppTarget;
     }
@@ -58,4 +58,4 @@ export const IS_LANDING_DEPLOYMENT = CURRENT_APP_TARGET === 'landing';
 export const IS_CRM_DEPLOYMENT = CURRENT_APP_TARGET === 'crm';
 export const IS_DEV_DEPLOYMENT = CURRENT_APP_TARGET === 'dev';
 
-export const CLIENT_ID_ENV: string = ((import.meta as any).env?.VITE_CLIENT_ID || '').trim();
+export const CLIENT_ID_ENV: string = ((import.meta as any).env?.VITE_CLIENT_ID || 'client-apex-hvac').trim();

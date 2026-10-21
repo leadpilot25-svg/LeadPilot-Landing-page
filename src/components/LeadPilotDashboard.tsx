@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ClientConfig, LeadItem, LeadStatus, ContactMethod } from '../types';
 import { LeadImportModal } from './LeadImportModal';
+import { ManualLeadModal } from './ManualLeadModal';
+import { DeleteLeadModal } from './DeleteLeadModal';
+import { TestOnboardingModal } from './TestOnboardingModal';
 import {
   getStoredLeads,
   saveAllLeads,
@@ -11,6 +14,8 @@ import {
   logLeadContact,
   testGoogleSheetConnection,
   deduplicateLeads,
+  subscribeTenantLeads,
+  deleteLead,
 } from '../utils/leadStorage';
 import {
   SUPPORTED_COUNTRY_CODES,
@@ -29,6 +34,7 @@ import {
   CheckCircle2,
   XCircle,
   Clock3,
+  ShieldCheck,
   Search,
   Filter,
   Send,
@@ -45,6 +51,8 @@ import {
   Star,
   Globe,
   Edit2,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 interface LeadPilotDashboardProps {
@@ -132,12 +140,57 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
   const [followUpDateInput, setFollowUpDateInput] = useState('');
   const [followUpTimeInput, setFollowUpTimeInput] = useState('09:00');
 
+  // Manual Add Lead modal state
+  const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
+  // Delete Lead modal confirmation state
+  const [leadToDelete, setLeadToDelete] = useState<LeadItem | null>(null);
+
   // Import Leads modal state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  // Test Onboarding & Live Security modal state (Dev Mode Only, auto-restores after Google Redirect)
+  const [isTestOnboardingModalOpen, setIsTestOnboardingModalOpen] = useState(() => {
+    if (appMode !== 'development') return false;
+    try {
+      return sessionStorage.getItem('leadpilot_restore_onboarding_modal') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Clear modal restore flag once opened
+  useEffect(() => {
+    if (isTestOnboardingModalOpen) {
+      try {
+        sessionStorage.removeItem('leadpilot_restore_onboarding_modal');
+      } catch {
+        // ignore storage errors
+      }
+    }
+  }, [isTestOnboardingModalOpen]);
 
   const handleImportSuccess = (importedCount: number, message: string) => {
     refreshLocalLeads();
     setActionNotification({ type: 'success', message });
+  };
+
+  const handleLeadAdded = (newLead: LeadItem) => {
+    refreshLocalLeads();
+    setActionNotification({
+      type: 'success',
+      message: `Lead "${newLead.name}" added to ${newLead.clientId} successfully! ✓`,
+    });
+  };
+
+  const handleConfirmDeleteLead = async (lead: LeadItem) => {
+    const res = await deleteLead(lead.id, lead.clientId, currentConfig.formEndpoint);
+    refreshLocalLeads();
+    if (selectedLead?.id === lead.id) {
+      setSelectedLead(null);
+    }
+    setActionNotification({
+      type: 'success',
+      message: res.message || `Lead "${lead.name}" deleted successfully. ✓`,
+    });
   };
 
   const endpoint = currentConfig.formEndpoint ? currentConfig.formEndpoint.trim() : '';
@@ -195,12 +248,15 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
     }
   };
 
-  // Load local leads
+  // Load local leads scoped strictly to active client / tenant
+  const activeTenantScope = appMode === 'client' ? (currentConfig.clientId || 'client-01') : selectedClientId;
+
   const refreshLocalLeads = () => {
-    const all = deduplicateLeads(getStoredLeads());
-    setLeads(all);
+    const scope = appMode === 'client' ? (currentConfig.clientId || 'client-01') : selectedClientId;
+    const clientLeads = deduplicateLeads(getStoredLeads(scope));
+    setLeads(clientLeads);
     if (selectedLead) {
-      const updated = all.find((l) => l.id === selectedLead.id);
+      const updated = clientLeads.find((l) => l.id === selectedLead.id);
       if (updated) setSelectedLead(updated);
     }
   };
@@ -209,20 +265,15 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
   const handleSyncRemoteLeads = async () => {
     setIsSyncing(true);
     try {
-      const updatedList = deduplicateLeads(await fetchRemoteLeads(endpoint, selectedClientId));
+      const updatedList = deduplicateLeads(await fetchRemoteLeads(endpoint, activeTenantScope));
       setLeads(updatedList);
       if (selectedLead) {
         const updated = updatedList.find((l) => l.id === selectedLead.id);
         if (updated) setSelectedLead(updated);
       }
       setLastSyncTime(new Date().toLocaleTimeString());
-      if (endpoint && endpoint.startsWith('http')) {
-        setConnStatus('connected');
-        setConnMsg('Google Sheet Connected ✓');
-      }
     } catch (err: any) {
-      setConnStatus('failed');
-      setConnMsg('Google Sheet connection failed during sync.');
+      console.warn('Sync notice:', err);
     } finally {
       setIsSyncing(false);
     }
@@ -230,6 +281,18 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
 
   useEffect(() => {
     refreshLocalLeads();
+
+    // Attach real-time Firestore listener for active tenant
+    const unsubscribeFirestore = subscribeTenantLeads(
+      activeTenantScope,
+      (firestoreLeads) => {
+        setLeads(deduplicateLeads(firestoreLeads));
+        if (selectedLead) {
+          const updated = firestoreLeads.find((l) => l.id === selectedLead.id);
+          if (updated) setSelectedLead(updated);
+        }
+      }
+    );
 
     if (endpoint && endpoint.startsWith('http')) {
       runConnectionTest();
@@ -242,6 +305,7 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
     const handleUpdateEvent = () => refreshLocalLeads();
     window.addEventListener('leadpilot_leads_updated', handleUpdateEvent);
     return () => {
+      unsubscribeFirestore();
       window.removeEventListener('leadpilot_leads_updated', handleUpdateEvent);
     };
   }, [endpoint, selectedClientId]);
@@ -292,11 +356,11 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
     const formatted = normalizeImportedPhone(editedPhoneInput.trim(), selectedCountryCode);
     const updatedLead: LeadItem = { ...selectedLead, phone: formatted };
     setSelectedLead(updatedLead);
-    const stored = getStoredLeads();
+    const stored = getStoredLeads(activeTenantScope);
     const idx = stored.findIndex((l) => l.id === selectedLead.id);
     if (idx !== -1) {
       stored[idx] = updatedLead;
-      saveAllLeads(stored);
+      saveAllLeads(stored, activeTenantScope);
       refreshLocalLeads();
     }
     setIsEditingPhone(false);
@@ -455,7 +519,7 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
     setSyncingAction(true);
     setActionNotification({ type: 'success', message: `Opening WhatsApp chat with +${raw}...` });
     try {
-      const res = await logLeadContact(lead.id, 'WhatsApp', undefined, endpoint);
+      const res = await logLeadContact(lead.id, 'WhatsApp', undefined, lead.clientId || activeTenantScope, endpoint);
       if (res.success) {
         refreshLocalLeads();
         setActionNotification({ type: 'success', message: `WhatsApp opened (+${raw}) & contact logged to Google Sheet ✓` });
@@ -484,7 +548,7 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
     setSyncingAction(true);
     setActionNotification(null);
     try {
-      const res = await logLeadContact(lead.id, 'SMS', undefined, endpoint);
+      const res = await logLeadContact(lead.id, 'SMS', undefined, lead.clientId || activeTenantScope, endpoint);
       if (res.success) {
         refreshLocalLeads();
         setActionNotification({ type: 'success', message: `SMS opened (+${raw}) & contact logged ✓` });
@@ -506,7 +570,7 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
     setSyncingAction(true);
     setActionNotification(null);
     try {
-      const res = await logLeadContact(lead.id, 'Email', undefined, endpoint);
+      const res = await logLeadContact(lead.id, 'Email', undefined, lead.clientId || activeTenantScope, endpoint);
       if (!res.success) {
         setActionNotification({ type: 'error', message: `Sync failed: ${res.message}` });
         return;
@@ -526,7 +590,7 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
     setSyncingAction(true);
     setActionNotification(null);
     try {
-      const res = await updateLeadStatus(leadId, newStatus, endpoint);
+      const res = await updateLeadStatus(leadId, newStatus, selectedLead?.clientId || activeTenantScope, endpoint);
       if (!res.success) {
         setActionNotification({ type: 'error', message: `Failed to update status on Google Sheet: ${res.message}` });
         return;
@@ -547,7 +611,7 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
     setSyncingAction(true);
     setActionNotification(null);
     try {
-      const res = await addLeadNote(selectedLead.id, newNoteText, 'Agent', endpoint);
+      const res = await addLeadNote(selectedLead.id, newNoteText, 'Agent', selectedLead.clientId || activeTenantScope, endpoint);
       if (!res.success) {
         setActionNotification({ type: 'error', message: `Failed to add note on Google Sheet: ${res.message}` });
         return;
@@ -571,7 +635,7 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
     setSyncingAction(true);
     setActionNotification(null);
     try {
-      const res = await scheduleLeadFollowUp(selectedLead.id, combinedIso, endpoint);
+      const res = await scheduleLeadFollowUp(selectedLead.id, combinedIso, selectedLead.clientId || activeTenantScope, endpoint);
       if (!res.success) {
         setActionNotification({ type: 'error', message: `Failed to schedule follow-up on Google Sheet: ${res.message}` });
         return;
@@ -591,7 +655,7 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
     setSyncingAction(true);
     setActionNotification(null);
     try {
-      const res = await scheduleLeadFollowUp(selectedLead.id, '', endpoint);
+      const res = await scheduleLeadFollowUp(selectedLead.id, '', selectedLead.clientId || activeTenantScope, endpoint);
       if (!res.success) {
         setActionNotification({ type: 'error', message: `Failed to clear follow-up on Google Sheet: ${res.message}` });
         return;
@@ -689,10 +753,22 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
               <button
                 onClick={runConnectionTest}
                 disabled={isTestingConn}
-                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow"
+                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow cursor-pointer"
               >
                 <RotateCw className={`w-3.5 h-3.5 ${isTestingConn ? 'animate-spin' : ''}`} />
                 <span>{isTestingConn ? 'Testing...' : 'Test Connection'}</span>
+              </button>
+            )}
+
+            {/* Onboarding & Test Accounts Tool (Dev Mode Only) */}
+            {appMode === 'development' && (
+              <button
+                onClick={() => setIsTestOnboardingModalOpen(true)}
+                className="bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow cursor-pointer"
+                title="Open isolated test accounts onboarding and live Firestore security verification"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-200" />
+                <span>Onboarding & Test Accounts</span>
               </button>
             )}
 
@@ -707,12 +783,21 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
               {lastSyncTime && <span className="text-[10px] text-slate-500 font-mono">({lastSyncTime})</span>}
             </button>
 
+            {/* Add Lead Action Button */}
+            <button
+              onClick={() => setIsAddLeadModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Lead</span>
+            </button>
+
             {/* Import Leads Action Button */}
             <button
               onClick={() => setIsImportModalOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow"
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
               <span>Import Leads</span>
             </button>
 
@@ -1354,15 +1439,27 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
                         </div>
                       </td>
 
-                      {/* View Button */}
+                      {/* View & Delete Buttons */}
                       <td className="py-3 px-3 text-right whitespace-nowrap">
-                        <button
-                          onClick={() => setSelectedLead(lead)}
-                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1 ml-auto"
-                        >
-                          <span>Manage</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5 ml-auto">
+                          <button
+                            onClick={() => setSelectedLead(lead)}
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1 transition cursor-pointer"
+                          >
+                            <span>Manage</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLeadToDelete(lead);
+                            }}
+                            title={`Delete ${lead.name}`}
+                            className="bg-slate-800/80 hover:bg-red-950/60 text-slate-400 hover:text-red-400 p-1.5 rounded-lg border border-slate-700/60 hover:border-red-500/40 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1392,12 +1489,23 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
                   Lead ID: <strong className="text-emerald-400">{selectedLead.id}</strong> • Submitted: {new Date(selectedLead.timestamp).toLocaleString()}
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedLead(null)}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg font-bold text-xs border border-slate-700"
-              >
-                ✕ Close
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLeadToDelete(selectedLead)}
+                  className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Delete this lead"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+                <button
+                  onClick={() => setSelectedLead(null)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg font-bold text-xs border border-slate-700 cursor-pointer"
+                >
+                  ✕ Close
+                </button>
+              </div>
             </div>
 
             {/* Direct Communication Action Bar */}
@@ -1782,6 +1890,22 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
         </div>
       )}
 
+      {/* Manual Add Lead Modal */}
+      <ManualLeadModal
+        isOpen={isAddLeadModalOpen}
+        onClose={() => setIsAddLeadModalOpen(false)}
+        currentConfig={currentConfig}
+        onLeadAdded={handleLeadAdded}
+      />
+
+      {/* Delete Lead Confirmation Modal */}
+      <DeleteLeadModal
+        isOpen={Boolean(leadToDelete)}
+        lead={leadToDelete}
+        onClose={() => setLeadToDelete(null)}
+        onConfirmDelete={handleConfirmDeleteLead}
+      />
+
       {/* Import Leads Modal */}
       <LeadImportModal
         isOpen={isImportModalOpen}
@@ -1789,6 +1913,14 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
         currentConfig={currentConfig}
         onImportSuccess={handleImportSuccess}
       />
+
+      {/* Test Onboarding & Live Security Verification Modal (Dev Mode Only) */}
+      {appMode === 'development' && (
+        <TestOnboardingModal
+          isOpen={isTestOnboardingModalOpen}
+          onClose={() => setIsTestOnboardingModalOpen(false)}
+        />
+      )}
 
     </div>
   );

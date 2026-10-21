@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { ClientConfig, LeadItem, LeadStatus, LeadNote } from '../types';
-import { saveAllLeads, getStoredLeads, generateLeadId, syncLeadActionToRemote } from '../utils/leadStorage';
+import { saveAllLeads, getStoredLeads, generateLeadId, syncLeadActionToRemote, saveLead } from '../utils/leadStorage';
 import {
   SUPPORTED_COUNTRY_CODES,
   detectDefaultCountryCode,
@@ -344,9 +344,7 @@ export const LeadImportModal: React.FC<LeadImportModalProps> = ({
     setIsProcessing(true);
 
     // Get current stored leads for client-isolated duplicate check
-    const existingLeads = getStoredLeads().filter(
-      (l) => !currentConfig.clientId || l.clientId === currentConfig.clientId
-    );
+    const existingLeads = getStoredLeads(currentConfig.clientId);
 
     const existingPhones = new Set(existingLeads.map((l) => normalizePhone(l.phone)).filter(Boolean));
     const existingEmails = new Set(existingLeads.map((l) => (l.email || '').trim().toLowerCase()).filter(Boolean));
@@ -529,9 +527,19 @@ export const LeadImportModal: React.FC<LeadImportModalProps> = ({
       newLeadItems.push(newLead);
     }
 
-    // Combine and save to localStorage
+    // Combine and save to scoped tenant cache
+    const targetTenant = currentConfig.clientId || 'client-01';
     const updatedAllLeads = [...newLeadItems, ...existingLeads];
-    saveAllLeads(updatedAllLeads);
+    saveAllLeads(updatedAllLeads, targetTenant);
+
+    // Persist imported leads to Firestore subcollection /tenants/{tenantId}/leads
+    for (const lead of newLeadItems) {
+      try {
+        await saveLead(lead);
+      } catch (err) {
+        console.warn('Failed to persist imported lead to Firestore:', err);
+      }
+    }
 
     // Sync each new lead to remote Google Sheet if endpoint configured
     if (endpoint && endpoint.startsWith('http')) {
