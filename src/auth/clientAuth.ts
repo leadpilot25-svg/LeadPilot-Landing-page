@@ -45,6 +45,10 @@ export const TENANT_METADATA_MAP: Record<string, { businessName: string; industr
     businessName: 'Tarot Coaching & Guidance',
     industry: 'tarot',
   },
+  'demo-tarot-kochi': {
+  businessName: 'Tarot Coaching & Guidance',
+  industry: 'tarot',
+},
   'demo-plumbing': {
     businessName: 'ProDrain Plumbing Services',
     industry: 'plumbing',
@@ -64,12 +68,13 @@ export const TENANT_METADATA_MAP: Record<string, { businessName: string; industr
  */
 export function inferTenantFromEmail(email: string): string {
   const clean = (email || '').toLowerCase().trim();
-  if (clean.includes('tarot')) return 'demo-tarot';
+
+  if (clean.includes('tarot')) return 'demo-tarot-kochi';
   if (clean.includes('hvac')) return 'client-apex-hvac';
   if (clean.includes('plumb')) return 'demo-plumbing';
   if (clean.includes('physio') || clean.includes('clinic')) return 'demo-physio';
   if (clean.includes('real') || clean.includes('realty')) return 'demo-realestate';
-  
+
   // Generic fallback slug from email domain/username
   const parts = clean.split('@');
   const slug = (parts[0] || 'client').replace(/[^a-z0-9_-]/g, '-').slice(0, 30);
