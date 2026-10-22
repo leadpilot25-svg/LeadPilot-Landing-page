@@ -126,12 +126,12 @@ function doPost(e) {
     // Extract & sanitize lead fields
     var leadId = data.id || "LP-" + Utilities.formatDate(new Date(), "GMT", "yyyyMMdd") + "-" + Utilities.getUuid().slice(0, 4);
     var timestamp = data.timestamp || new Date().toISOString();
-    var clientId = (data.clientId || "client-apex-hvac").toString().trim().toLowerCase();
-    var businessName = data.businessName || "Apex Heating & Cooling";
+    var clientId = (data.clientId || "demo-tarot-kochi").toString().trim().toLowerCase();
+    var businessName = data.businessName || (clientId.indexOf('tarot') !== -1 ? "Tarot Coaching & Guidance" : (clientId.indexOf('hvac') !== -1 ? "Apex Heating & Cooling" : "Lead Intake Client"));
     var name = (data.name || "Anonymous").toString().trim();
     var phone = (data.phone || "").toString().trim();
     var email = (data.email || "").toString().trim();
-    var service = (data.service || "General Inquiry").toString().trim();
+    var service = (data.service || (clientId.indexOf('tarot') !== -1 ? "Tarot Guidance Session" : "General Inquiry")).toString().trim();
     var details = (data.details || "").toString().trim();
     if (email && details.indexOf(email) === -1) {
       details = details ? (details + " | Email: " + email) : ("Email: " + email);

@@ -19,9 +19,10 @@ import {
 import { ArrowLeft, Monitor, Smartphone, ShieldCheck, Sparkles } from 'lucide-react';
 
 const INITIAL_CLIENT_CONFIGS: Record<string, ClientConfig> = {
+  'demo-tarot-kochi': JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
+  'demo-tarot': JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
   'client-apex-hvac': JSON.parse(JSON.stringify(APEX_HVAC_CLIENT_CONFIG)),
   'demo-hvac': JSON.parse(JSON.stringify(APEX_HVAC_CLIENT_CONFIG)),
-  'demo-tarot': JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
   'demo-plumbing': {
     ...JSON.parse(JSON.stringify(INDUSTRY_PRESETS['plumbing'])),
     clientId: 'client-prodrain-plumbing',
@@ -35,7 +36,7 @@ const INITIAL_CLIENT_CONFIGS: Record<string, ClientConfig> = {
 
 function getClientConfigForEnvClientId(envClientId: string): { key: string; config: ClientConfig } {
   if (!envClientId) {
-    return { key: 'client-apex-hvac', config: JSON.parse(JSON.stringify(APEX_HVAC_CLIENT_CONFIG)) };
+    return { key: 'demo-tarot-kochi', config: JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)) };
   }
 
   // 1. Direct match on key in CLIENT_PRESETS or INITIAL_CLIENT_CONFIGS
@@ -63,9 +64,9 @@ function getClientConfigForEnvClientId(envClientId: string): { key: string; conf
     }
   }
 
-  // 3. Fallback: clone APEX_HVAC_CLIENT_CONFIG with requested envClientId
+  // 3. Fallback: clone DEMO_CLIENT_CONFIG with requested envClientId
   const customConfig: ClientConfig = {
-    ...JSON.parse(JSON.stringify(APEX_HVAC_CLIENT_CONFIG)),
+    ...JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
     clientId: envClientId,
     businessName: envClientId.replace(/[-_]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
   };
@@ -99,22 +100,23 @@ export default function App() {
       const params = new URLSearchParams(window.location.search);
       const clientParam = params.get('client') || params.get('clientId');
       if (clientParam) {
-        if (clientParam.includes('tarot')) return 'demo-tarot';
+        if (clientParam.includes('tarot')) return 'demo-tarot-kochi';
+        if (clientParam.includes('hvac')) return 'client-apex-hvac';
         if (clientParam.includes('plumb')) return 'demo-plumbing';
-        return 'client-apex-hvac';
+        return clientParam;
       }
     }
     if (IS_LANDING_DEPLOYMENT || IS_CRM_DEPLOYMENT) {
       return getClientConfigForEnvClientId(CLIENT_ID_ENV).key;
     }
-    return 'client-apex-hvac';
+    return 'demo-tarot-kochi';
   });
 
   const [currentConfig, setCurrentConfig] = useState<ClientConfig>(() => {
     if (IS_LANDING_DEPLOYMENT || IS_CRM_DEPLOYMENT) {
       return getClientConfigForEnvClientId(CLIENT_ID_ENV).config;
     }
-    return clientConfigs['client-apex-hvac'] || clientConfigs['demo-hvac'] || APEX_HVAC_CLIENT_CONFIG;
+    return clientConfigs['demo-tarot-kochi'] || clientConfigs['demo-tarot'] || DEMO_CLIENT_CONFIG;
   });
 
   const [isEditorOpen, setIsEditorOpen] = useState(false);

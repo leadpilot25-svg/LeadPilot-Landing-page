@@ -1,0 +1,191 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Authenticated user profile associated with a tenant organization",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth user ID"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name"
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Identifier of the tenant business organization"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "owner", "staff"],
+          "description": "User role within the tenant organization"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of user creation"
+        }
+      },
+      "required": ["uid", "email", "tenantId", "role"]
+    },
+    "Tenant": {
+      "title": "Tenant",
+      "description": "Business organization (dental clinic, HVAC, plumber, real estate, etc.)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique tenant slug or ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Business name"
+        },
+        "industry": {
+          "type": "string",
+          "description": "Business industry category"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of tenant creation"
+        }
+      },
+      "required": ["id", "name"]
+    },
+    "TenantMember": {
+      "title": "TenantMember",
+      "description": "Membership mapping between a user and a tenant",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "User ID of the member"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email of the member"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "owner", "staff"],
+          "description": "Role granted in this tenant"
+        },
+        "addedAt": {
+          "type": "string",
+          "description": "ISO timestamp when added"
+        }
+      },
+      "required": ["uid", "role"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Customer enquiry or sales lead belonging to a specific tenant",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique Lead ID (e.g. LP-20260809-0001)"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO creation timestamp"
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Tenant ID this lead belongs to"
+        },
+        "businessName": {
+          "type": "string",
+          "description": "Business name receiving the lead"
+        },
+        "name": {
+          "type": "string",
+          "description": "Lead customer contact name"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Lead phone number"
+        },
+        "email": {
+          "type": "string",
+          "description": "Lead optional email"
+        },
+        "service": {
+          "type": "string",
+          "description": "Service needed"
+        },
+        "details": {
+          "type": "string",
+          "description": "Service enquiry details"
+        },
+        "address": {
+          "type": "string",
+          "description": "Customer address or service location"
+        },
+        "leadSource": {
+          "type": "string",
+          "description": "Lead channel source"
+        },
+        "pageUrl": {
+          "type": "string",
+          "description": "Landing page URL"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["New", "Contacted", "Follow-up", "Qualified", "Won", "Lost"],
+          "description": "Current pipeline status"
+        },
+        "notes": {
+          "type": "array",
+          "description": "Array of notes for the lead"
+        },
+        "followUpDate": {
+          "type": "string",
+          "description": "Scheduled follow-up date"
+        },
+        "lastContacted": {
+          "type": "string",
+          "description": "Last contacted timestamp"
+        },
+        "lastContactMethod": {
+          "type": "string",
+          "enum": ["Call", "WhatsApp", "SMS", "Email"],
+          "description": "Last method used to reach lead"
+        },
+        "contactCount": {
+          "type": "number",
+          "description": "Number of touchpoints made"
+        },
+        "contactLogs": {
+          "type": "array",
+          "description": "History of contact logs"
+        }
+      },
+      "required": ["id", "clientId", "name", "phone", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile with tenant affiliation and role"
+    },
+    "/tenants/{tenantId}": {
+      "schema": "Tenant",
+      "description": "Tenant organization root"
+    },
+    "/tenants/{tenantId}/members/{memberUid}": {
+      "schema": "TenantMember",
+      "description": "Tenant membership document granting access to tenant resources"
+    },
+    "/tenants/{tenantId}/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Lead documents strictly isolated within tenant subcollection"
+    }
+  }
+}

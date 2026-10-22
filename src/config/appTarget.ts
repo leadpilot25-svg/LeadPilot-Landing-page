@@ -58,4 +58,4 @@ export const IS_LANDING_DEPLOYMENT = CURRENT_APP_TARGET === 'landing';
 export const IS_CRM_DEPLOYMENT = CURRENT_APP_TARGET === 'crm';
 export const IS_DEV_DEPLOYMENT = CURRENT_APP_TARGET === 'dev';
 
-export const CLIENT_ID_ENV: string = ((import.meta as any).env?.VITE_CLIENT_ID || 'client-apex-hvac').trim();
+export const CLIENT_ID_ENV: string = ((import.meta as any).env?.VITE_CLIENT_ID || 'demo-tarot-kochi').trim();

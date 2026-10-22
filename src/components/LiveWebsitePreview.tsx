@@ -118,8 +118,8 @@ export const LiveWebsitePreview: React.FC<LiveWebsitePreviewProps> = ({ config, 
     setFormError(null);
 
     // Formatted payload structured for Google Apps Script / Google Sheets & LeadPilot mapping
-    const endpoint = (import.meta.env.VITE_FORM_ENDPOINT || config.formEndpoint || '').trim();
-    const cleanTenant = (config.clientId || 'client-apex-hvac').trim().toLowerCase();
+    const endpoint = (config.formEndpoint || (import.meta as any).env?.VITE_FORM_ENDPOINT || '').trim();
+    const cleanTenant = (config.clientId || (import.meta as any).env?.VITE_CLIENT_ID || 'demo-tarot-kochi').trim().toLowerCase();
     const cleanEmail = formData.email ? formData.email.trim() : '';
 
     // Prevent duplicate submissions within short 2-minute window
@@ -143,7 +143,7 @@ export const LiveWebsitePreview: React.FC<LiveWebsitePreviewProps> = ({ config, 
 
     const leadPayload = {
       clientId: cleanTenant,
-      businessName: config.businessName || 'Local Business',
+      businessName: config.businessName || 'Tarot Coaching & Guidance',
       name: cleanName,
       phone: cleanPhone,
       email: cleanEmail || undefined,
@@ -158,6 +158,10 @@ export const LiveWebsitePreview: React.FC<LiveWebsitePreviewProps> = ({ config, 
     try {
       // saveLead saves to Firestore and syncs to Google Apps Script Web App remotely if endpoint is provided
       const res = await saveLead(leadPayload, endpoint);
+      if (!res.success) {
+        setFormError(res.message || 'Something went wrong while submitting. Please call us directly.');
+        return;
+      }
       const savedLead = res.lead;
 
       if (!endpoint) {
@@ -177,9 +181,9 @@ export const LiveWebsitePreview: React.FC<LiveWebsitePreviewProps> = ({ config, 
         message: '',
         gotcha: '',
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Lead submission error:', err);
-      setFormError('Something went wrong while submitting. Please call us directly.');
+      setFormError(err?.message || 'Something went wrong while submitting. Please call us directly.');
     } finally {
       setFormSubmitting(false);
     }

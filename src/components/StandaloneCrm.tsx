@@ -20,7 +20,7 @@ interface StandaloneCrmProps {
   initialConfig?: ClientConfig;
 }
 
-export const StandaloneCrm: React.FC<StandaloneCrmProps> = ({ defaultClientId = 'demo-tarot', initialConfig }) => {
+export const StandaloneCrm: React.FC<StandaloneCrmProps> = ({ defaultClientId = 'demo-tarot-kochi', initialConfig }) => {
   const [currentUser, setCurrentUser] = useState<ClientUser | null>(() => getCurrentClientSession());
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');

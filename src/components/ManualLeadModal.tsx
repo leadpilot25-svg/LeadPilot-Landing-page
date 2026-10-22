@@ -60,8 +60,8 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
 
   if (!isOpen) return null;
 
-  const targetTenant = (currentConfig.clientId || 'demo-tarot').trim().toLowerCase();
-  const businessName = currentConfig.businessName || 'Local Business';
+  const targetTenant = (currentConfig.clientId || 'demo-tarot-kochi').trim().toLowerCase();
+  const businessName = currentConfig.businessName || 'Tarot Coaching & Guidance';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

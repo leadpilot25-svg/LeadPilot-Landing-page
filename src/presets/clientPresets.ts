@@ -8,7 +8,7 @@ export const DEMO_CLIENT_CONFIG: ClientConfig = {
   serviceArea: 'Kochi, Kerala & Online',
 
   industry: 'Tarot Coaching',
-  businessName: 'Demo Business',
+  businessName: 'Tarot Coaching & Guidance',
   websiteUrl: 'https://example.com',
   tagline: 'Personal Guidance & Tarot Coaching Services',
   footerDescription: 'Personal Guidance & Tarot Coaching Services',
@@ -17,7 +17,7 @@ export const DEMO_CLIENT_CONFIG: ClientConfig = {
   heroStatusText: 'Online & In-Person Sessions Available',
   heroSecondaryCtaText: 'Request Guidance',
   leadFormStatusText: 'SESSIONS AVAILABLE',
-  leadFormTrustText: '',
+  leadFormTrustText: '🔒 Your information is private and never shared.',
   finalCtaHeading: 'Request a Guidance Session',
   finalCtaDescription: 'Tell us what guidance or session you are looking for and our team will get back to you.',
   finalCtaButtonText: 'Request Session',
@@ -53,6 +53,7 @@ export const DEMO_CLIENT_CONFIG: ClientConfig = {
   googleMapsLink: 'https://maps.google.com/?q=Kochi,Kerala',
   googleMapsEmbedUrl: '',
   googleReviewLink: '',
+  formEndpoint: ((import.meta as any).env?.VITE_FORM_ENDPOINT || '').trim(),
   googleAnalyticsId: '',
   facebookPixelId: '',
   googleTagManagerId: '',
@@ -60,7 +61,7 @@ export const DEMO_CLIENT_CONFIG: ClientConfig = {
   socialLinks: {},
 
   seo: {
-    title: 'Demo Business | Tarot Coaching & Personal Guidance in Kochi',
+    title: 'Tarot Coaching & Guidance | Personal Tarot & Life Guidance in Kochi',
     metaDescription: 'Personal tarot reading, relationship guidance, and career coaching sessions in Kochi, Kerala & online.',
     keywords: ['Tarot coaching', 'Personal guidance', 'Online tarot reading', 'Kochi tarot coach'],
     ogImageUrl: '',
@@ -301,8 +302,9 @@ export const APEX_HVAC_CLIENT_CONFIG: ClientConfig = {
 };
 
 export const CLIENT_PRESETS: Record<string, ClientConfig> = {
-  'demo-hvac': APEX_HVAC_CLIENT_CONFIG,
-  'client-apex-hvac': APEX_HVAC_CLIENT_CONFIG,
+  'demo-tarot-kochi': DEMO_CLIENT_CONFIG,
   'demo-tarot': DEMO_CLIENT_CONFIG,
+  'client-apex-hvac': APEX_HVAC_CLIENT_CONFIG,
+  'demo-hvac': APEX_HVAC_CLIENT_CONFIG,
 };
 

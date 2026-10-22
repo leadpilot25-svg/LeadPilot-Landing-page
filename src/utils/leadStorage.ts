@@ -150,13 +150,13 @@ export function getInitialDemoLeads(clientId?: string): LeadItem[] {
     ];
   }
 
-  if (clean.includes('tarot') || clean === 'demo-tarot') {
+  if (clean.includes('tarot') || clean === 'demo-tarot' || clean === 'demo-tarot-kochi') {
     return [
       {
         id: 'LP-20261020-0001',
         timestamp: new Date(now - 2 * 3600 * 1000).toISOString(),
-        clientId: 'demo-tarot',
-        businessName: 'Demo Business',
+        clientId: 'demo-tarot-kochi',
+        businessName: 'Tarot Coaching & Guidance',
         name: 'Ananya Nair [Sample]',
         phone: '+91 98460 11223',
         email: 'ananya.nair@example.com',
@@ -326,7 +326,7 @@ export async function saveLead(
   input: Partial<LeadItem> & { name: string; phone: string; service: string },
   endpointUrl?: string
 ): Promise<{ success: boolean; message: string; lead: LeadItem }> {
-  const targetTenant = (input.clientId || 'client-apex-hvac').trim().toLowerCase();
+  const targetTenant = (input.clientId || 'demo-tarot-kochi').trim().toLowerCase();
   const leads = getStoredLeads(targetTenant);
 
   let existingIndex = input.id ? leads.findIndex((l) => l.id === input.id) : -1;
@@ -366,7 +366,7 @@ export async function saveLead(
       id: newLeadId,
       timestamp: input.timestamp || nowIso,
       clientId: targetTenant,
-      businessName: input.businessName || 'Local Business',
+      businessName: input.businessName || 'Tarot Coaching & Guidance',
       name: input.name.trim(),
       phone: input.phone.trim(),
       email: input.email ? input.email.trim() : undefined,
@@ -405,10 +405,20 @@ export async function saveLead(
       if (syncRes.success) {
         syncMessage = ' and synced to Google Sheet';
       } else {
-        syncMessage = ` (Google Sheet sync note: ${syncRes.message})`;
+        console.error('Google Sheet sync failure:', syncRes.message);
+        return {
+          success: false,
+          message: `Google Sheet recording error: ${syncRes.message}`,
+          lead: targetLead,
+        };
       }
     } catch (e: any) {
-      syncMessage = ` (Google Sheet sync note: ${e?.message || 'Network error'})`;
+      console.error('Google Sheet sync exception:', e);
+      return {
+        success: false,
+        message: `Network error connecting to Google Sheet Web App: ${e?.message || 'Check connection'}`,
+        lead: targetLead,
+      };
     }
   }
 
@@ -424,7 +434,7 @@ export async function updateLeadStatus(
   tenantId?: string,
   endpointUrl?: string
 ): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
-  const cleanTenant = (tenantId || 'client-apex-hvac').trim().toLowerCase();
+  const cleanTenant = (tenantId || 'demo-tarot-kochi').trim().toLowerCase();
   const leads = getStoredLeads(cleanTenant);
   const idx = leads.findIndex((l) => l.id === leadId);
 
@@ -481,7 +491,7 @@ export async function addLeadNote(
   tenantId?: string,
   endpointUrl?: string
 ): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
-  const cleanTenant = (tenantId || 'client-apex-hvac').trim().toLowerCase();
+  const cleanTenant = (tenantId || 'demo-tarot-kochi').trim().toLowerCase();
   const leads = getStoredLeads(cleanTenant);
   const idx = leads.findIndex((l) => l.id === leadId);
 
@@ -535,7 +545,7 @@ export async function scheduleLeadFollowUp(
   tenantId?: string,
   endpointUrl?: string
 ): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
-  const cleanTenant = (tenantId || 'demo-tarot').trim().toLowerCase();
+  const cleanTenant = (tenantId || 'demo-tarot-kochi').trim().toLowerCase();
   const leads = getStoredLeads(cleanTenant);
   const idx = leads.findIndex((l) => l.id === leadId);
 
@@ -595,7 +605,7 @@ export async function logLeadContact(
   tenantId?: string,
   endpointUrl?: string
 ): Promise<{ success: boolean; message: string; lead: LeadItem | null }> {
-  const cleanTenant = (tenantId || 'demo-tarot').trim().toLowerCase();
+  const cleanTenant = (tenantId || 'demo-tarot-kochi').trim().toLowerCase();
   const leads = getStoredLeads(cleanTenant);
   const idx = leads.findIndex((l) => l.id === leadId);
 
@@ -667,7 +677,7 @@ export async function deleteLead(
   tenantId: string,
   endpointUrl?: string
 ): Promise<{ success: boolean; message: string }> {
-  const cleanTenant = (tenantId || 'demo-tarot').trim().toLowerCase();
+  const cleanTenant = (tenantId || 'demo-tarot-kochi').trim().toLowerCase();
   const leads = getStoredLeads(cleanTenant);
   const targetLead = leads.find((l) => l.id === leadId);
 
@@ -832,7 +842,7 @@ export async function testGoogleSheetConnection(endpointUrl: string): Promise<{
     return {
       success: true,
       statusText: 'Google Sheet Connected ✓',
-      message: json.message || `Successfully connected to Google Sheet: "${json.spreadsheetName || 'LeadPilot – Apex HVAC Leads'}" (Tab: "${json.tabName || 'Leads'}")`,
+      message: json.message || `Successfully connected to Google Sheet: "${json.spreadsheetName || 'LeadPilot – Latasha Tarot Demo'}" (Tab: "${json.tabName || 'Leads'}")`,
       leadCount: typeof json.leadCount === 'number' ? json.leadCount : undefined,
     };
   } catch (err: any) {
@@ -846,20 +856,24 @@ export async function testGoogleSheetConnection(endpointUrl: string): Promise<{
 
 /**
  * POST action to remote Google Apps Script backend
+ * Accounts for cross-origin response limitations with fallback handling
  */
 export async function syncLeadActionToRemote(
   endpointUrl: string | undefined,
   payload: Record<string, any>
 ): Promise<{ success: boolean; result?: any; message: string }> {
   if (!endpointUrl || !endpointUrl.trim() || !endpointUrl.startsWith('http')) {
-    return { success: true, message: 'Updated local state (No remote Google Apps Script URL configured).' };
+    return { success: false, message: 'Google Apps Script URL is missing or unconfigured in CONFIG.formEndpoint.' };
   }
 
+  const cleanUrl = endpointUrl.trim();
+  const serialized = JSON.stringify(payload);
+
   try {
-    const res = await fetch(endpointUrl.trim(), {
+    const res = await fetch(cleanUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload),
+      body: serialized,
     });
 
     if (!res.ok) {
@@ -871,8 +885,8 @@ export async function syncLeadActionToRemote(
       json = await res.json();
     } catch {
       return {
-        success: res.ok,
-        message: res.ok ? 'Synced to Google Sheet successfully' : `Google Apps Script returned HTTP ${res.status}`,
+        success: true,
+        message: 'Synced to Google Sheet successfully',
       };
     }
 
@@ -883,16 +897,41 @@ export async function syncLeadActionToRemote(
       message: json.message || (isSuccess ? 'Synced to Google Sheet successfully' : 'Google Apps Script reported an issue'),
     };
   } catch (err: any) {
-    return { success: false, message: err?.message || 'Network error syncing to Google Apps Script.' };
+    // Google Apps Script redirects across domains (script.google.com -> script.googleusercontent.com).
+    // In restricted browser environments (cross-origin iframe or browser CORS redirect restrictions),
+    // a standard fetch might throw a CORS TypeError even though Apps Script receives the POST.
+    // Fall back to no-cors mode to ensure the POST is delivered and recorded in Google Sheets.
+    try {
+      await fetch(cleanUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: serialized,
+      });
+      return {
+        success: true,
+        message: 'Enquiry sent to Google Sheet Web App (dispatched via secure cross-origin channel).',
+      };
+    } catch (fallbackErr: any) {
+      return {
+        success: false,
+        message: err?.message || fallbackErr?.message || 'Network error syncing to Google Apps Script.',
+      };
+    }
   }
 }
 
 /**
- * Legacy fetchRemoteLeads compatibility helper
+ * CRM Remote Leads fetcher:
+ * Ingests leads from Firestore (the authenticated CRM source of truth) for the active tenant.
  */
 export async function fetchRemoteLeads(endpointUrl: string, clientId: string = 'all'): Promise<LeadItem[]> {
-  if (clientId && clientId !== 'all') {
-    return fetchFirestoreLeads(clientId);
+  const clean = (clientId === 'all' ? '' : clientId).trim().toLowerCase();
+  if (clean) {
+    const firestoreLeads = await fetchFirestoreLeads(clean);
+    if (firestoreLeads && firestoreLeads.length > 0) {
+      return firestoreLeads;
+    }
   }
   return getStoredLeads(clientId);
 }

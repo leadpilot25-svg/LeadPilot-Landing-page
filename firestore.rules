@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny catch-all: Zero public read or write access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'mail.nasiya@gmail.com' &&
+         request.auth.token.email_verified == true &&
+         request.auth.token.firebase.sign_in_provider == 'google.com') ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    // Master Gate: Membership MUST exist in the tenant's members subcollection.
+    // Self-assigned tenant IDs in user profiles do not grant tenant access.
+    function isTenantMember(tenantId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid));
+    }
+
+    function isValidLeadData(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.clientId is string && data.clientId.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+             data.phone is string && data.phone.size() > 0 && data.phone.size() <= 50 &&
+             (data.status == 'New' || data.status == 'Contacted' || data.status == 'Follow-up' || data.status == 'Qualified' || data.status == 'Won' || data.status == 'Lost');
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      // Users can register their own profile (staff/owner) or administrator can provision user profiles
+      allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && 
+        (request.resource.data.role == 'owner' || request.resource.data.role == 'staff' || isAdmin());
+      // Users can update their profile but cannot alter their role or tenantId
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (request.auth.uid == userId && 
+         request.resource.data.tenantId == resource.data.tenantId && 
+         request.resource.data.role == resource.data.role)
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /tenants/{tenantId} {
+      allow get: if isValidId(tenantId) && (isTenantMember(tenantId) || isAdmin());
+      allow list: if isAdmin();
+      // Tenants can only be created by administrators
+      allow write: if isAdmin();
+
+      // Tenant members: Gated by administrator or tenant owner
+      match /members/{memberUid} {
+        allow get, list: if isTenantMember(tenantId) || isAdmin();
+        allow write: if isAdmin() || (isTenantMember(tenantId) && exists(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid)) && get(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid)).data.role == 'owner');
+      }
+
+      match /leads/{leadId} {
+        // Zero public read or list access: Strictly restricted to authenticated tenant members
+        allow get, list: if isTenantMember(tenantId) || isAdmin();
+        allow delete: if isTenantMember(tenantId) || isAdmin();
+        allow update: if isValidId(leadId) &&
+          (isTenantMember(tenantId) || isAdmin()) &&
+          isValidLeadData(request.resource.data) &&
+          request.resource.data.id == resource.data.id &&
+          request.resource.data.clientId == resource.data.clientId;
+        // Public landing page enquiry creation:
+        // Authenticated tenant members OR anonymous public form submitters can create an enquiry
+        // provided the lead data is validated, ID matches, clientId matches tenantId, and initial status is 'New'.
+        allow create: if isValidId(leadId) &&
+          isValidLeadData(request.resource.data) &&
+          request.resource.data.id == leadId &&
+          request.resource.data.clientId == tenantId &&
+          (request.resource.data.status == 'New' || isTenantMember(tenantId) || isAdmin());
+      }
+    }
+  }
+}
