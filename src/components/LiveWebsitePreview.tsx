@@ -118,7 +118,7 @@ export const LiveWebsitePreview: React.FC<LiveWebsitePreviewProps> = ({ config, 
     setFormError(null);
 
     // Formatted payload structured for Google Apps Script / Google Sheets & LeadPilot mapping
-    const endpoint = config.formEndpoint ? config.formEndpoint.trim() : '';
+    const endpoint = (import.meta.env.VITE_FORM_ENDPOINT || config.formEndpoint || '').trim();
     const cleanTenant = (config.clientId || 'client-apex-hvac').trim().toLowerCase();
     const cleanEmail = formData.email ? formData.email.trim() : '';
 
