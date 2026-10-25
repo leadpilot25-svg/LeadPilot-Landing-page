@@ -4,8 +4,30 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  const target = process.env.VITE_APP_TARGET?.toString().trim().toLowerCase();
+
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      {
+        name: 'app-target-entry-resolver',
+        enforce: 'pre',
+        resolveId(id, importer) {
+          if (target && importer && (id === './App.tsx' || id === './App' || id.endsWith('/App.tsx') || id.endsWith('/App'))) {
+            if (/main\.tsx/.test(importer)) {
+              if (target === 'landing') {
+                return path.resolve(__dirname, 'src/AppLanding.tsx');
+              }
+              if (target === 'crm') {
+                return path.resolve(__dirname, 'src/AppCrm.tsx');
+              }
+            }
+          }
+          return null;
+        },
+      },
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
