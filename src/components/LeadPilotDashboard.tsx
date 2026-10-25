@@ -183,6 +183,14 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
 
   const handleConfirmDeleteLead = async (lead: LeadItem) => {
     const res = await deleteLead(lead.id, lead.clientId, currentConfig.formEndpoint);
+    if (!res.success) {
+      setActionNotification({
+        type: 'error',
+        message: res.message || 'Permission denied: could not delete lead.',
+      });
+      return;
+    }
+
     refreshLocalLeads();
     if (selectedLead?.id === lead.id) {
       setSelectedLead(null);
@@ -308,7 +316,7 @@ export const LeadPilotDashboard: React.FC<LeadPilotDashboardProps> = ({ currentC
       unsubscribeFirestore();
       window.removeEventListener('leadpilot_leads_updated', handleUpdateEvent);
     };
-  }, [endpoint, selectedClientId]);
+  }, [endpoint, selectedClientId, activeTenantScope]);
 
   // Default dialing country code for 10-digit numbers (auto-detects from client business location/phone)
   const [selectedCountryCode, setSelectedCountryCode] = useState<string>(() => detectDefaultCountryCode(currentConfig));

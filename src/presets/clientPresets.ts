@@ -301,10 +301,365 @@ export const APEX_HVAC_CLIENT_CONFIG: ClientConfig = {
   hasEmergencyService: true,
 };
 
+/**
+ * Example Preset 1: Skin & Aesthetic Clinic (Example with placeholder details)
+ * Isolated from Tarot and HVAC; formEndpoint left unconfigured.
+ */
+export const DEMO_SKIN_CLINIC_CONFIG: ClientConfig = {
+  clientId: 'demo-skin-clinic',
+  leadSource: 'Google Search / Local Medical Directory [Example]',
+  googleBusinessProfileUrl: 'https://example.com/gbp-skin-clinic',
+  businessPhone: '+1 (555) 019-3388 [Placeholder]',
+  serviceArea: 'Austin Metro & Surrounding Areas [Placeholder]',
+
+  industry: 'Medical Aesthetics & Skincare',
+  businessName: 'GlowAura Skin & Aesthetic Clinic [Example]',
+  websiteUrl: 'https://example.com/glowaura-skin',
+  tagline: 'Advanced Clinical Dermatology & Aesthetic Skin Treatments',
+  footerDescription: 'Doctor-supervised medical aesthetics, laser skin rejuvenation, and bespoke facial treatments.',
+  heroTitle: 'Radiant Skin Starts with Clinical Precision',
+  heroSubheadline: 'Board-supervised aesthetic treatments, advanced laser therapy, and personalized dermatology consultations tailored to your skin goals.',
+  heroStatusText: 'New Client Consultations Available This Week',
+  heroSecondaryCtaText: 'View Treatment Menu',
+  leadFormStatusText: 'CONSULTATIONS OPEN',
+  leadFormTrustText: '🔒 Strict medical privacy. Your contact details are never shared.',
+  finalCtaHeading: 'Book Your Private Skin Assessment',
+  finalCtaDescription: 'Consult with our certified aesthetic practitioners for a personalized skin health regimen.',
+  finalCtaButtonText: 'Request Consultation',
+  servicesEyebrow: 'CLINICAL TREATMENT MENU',
+  servicesHeading: 'Advanced Aesthetic & Dermatological Care',
+  servicesDescription: 'Science-backed treatments delivered by licensed medical aestheticians using FDA-cleared technology.',
+  whyUsHeading: 'Why Discerning Patients Choose GlowAura',
+  serviceAreaHeading: 'Serving Austin & Surrounding Communities',
+  serviceAreaDescription: 'Convenient clinical suites with private treatment rooms and state-of-the-art dermatological equipment.',
+  yearsInBusiness: 6,
+  jobsCompleted: '3,200+',
+  averageRating: 4.9,
+  reviewCount: 240,
+
+  phone: '+1 (555) 019-3388 [Placeholder]',
+  phoneRaw: '+15550193388',
+  email: 'appointments@glowaura-example.com [Placeholder]',
+  address: 'Suite 200, 742 Evergreen Medical Park [Placeholder]',
+  cityStateZip: 'Austin, TX 78701 [Placeholder]',
+  businessHours: 'Tue-Sat: 9:00 AM - 6:00 PM',
+  emergencyAvailability: '',
+  whatsAppNumber: '+15550193388',
+  defaultCountryCode: '+1',
+  whatsAppMessageTemplate: 'Hi {name}, thank you for inquiring with {businessName} regarding our {service}. When would be an ideal day for your private consultation?',
+
+  primaryColor: '#881337', // Elegant deep rose / wine
+  accentColor: '#D97706',  // Warm champagne gold
+  fontFamily: 'Inter, sans-serif',
+  logoUrl: '',
+  heroImageUrl: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=1200&auto=format&fit=crop&q=80',
+  aboutImageUrl: 'https://images.unsplash.com/photo-1512290900672-1f486a416a24?w=800&auto=format&fit=crop&q=80',
+
+  googleMapsLink: 'https://maps.google.com/?q=Austin,TX',
+  googleMapsEmbedUrl: '',
+  googleReviewLink: '',
+  googleBusinessProfileLink: '',
+  formEndpoint: '', // Unconfigured placeholder: does not connect to any client's Google Sheet
+  googleAnalyticsId: '',
+  facebookPixelId: '',
+  googleTagManagerId: '',
+
+  socialLinks: {},
+
+  seo: {
+    title: 'GlowAura Skin & Aesthetic Clinic | Austin Skincare & Laser Treatments',
+    metaDescription: 'Doctor-supervised aesthetic skin treatments, hydrafacials, chemical peels, and laser rejuvenation in Austin, TX.',
+    keywords: ['Skin clinic', 'Aesthetic treatments', 'Hydrafacial Austin', 'Laser skin rejuvenation', 'Chemical peel'],
+    ogImageUrl: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=1200&auto=format&fit=crop&q=80',
+    canonicalUrl: '',
+  },
+
+  serviceAreas: ['Central Austin', 'Westlake Hills', 'Downtown Austin', 'Domain / North Austin', 'Lakeway', 'Round Rock'],
+
+  services: [
+    {
+      id: 'hydrafacial-deluxe',
+      title: 'HydraFacial & Deep Pore Infusion',
+      tagline: 'Deep cleanse, extract & hydrate',
+      description: 'Patented vortex technology dislodges impurities while drenching skin with potent peptides and hyaluronic acid.',
+      iconName: 'Sparkles',
+      features: ['Lymphatic Drainage', 'Vortex Deep Cleansing', 'Targeted Booster Serum', 'LED Light Therapy'],
+      popular: true,
+    },
+    {
+      id: 'medical-chemical-peel',
+      title: 'Clinical Peels & Pigment Correction',
+      tagline: 'Resurface tone & texture',
+      description: 'Custom-compounded peel solutions addressing melasma, sun damage, and acne scarring under clinical supervision.',
+      iconName: 'ShieldCheck',
+      features: ['Skin Type Diagnostic', 'Custom Acid Blends', 'Post-Treatment Soothing', 'At-Home Barrier Kit'],
+    },
+    {
+      id: 'laser-skin-therapy',
+      title: 'Laser Skin Rejuvenation & Collagen Renewal',
+      tagline: 'Firmness & fine line reduction',
+      description: 'Non-ablative fractional laser treatment that stimulates natural dermal collagen production with minimal downtime.',
+      iconName: 'Activity',
+      features: ['Collagen Stimulation', 'Pore Refinement', 'Tone Evening', 'Cryo-Cooling Comfort'],
+    },
+    {
+      id: 'comprehensive-consultation',
+      title: 'Comprehensive Skin Analysis & Regimen Design',
+      tagline: 'In-depth diagnostic assessment',
+      description: 'Digital skin imaging consultation mapping hydration, sun damage, and cellular health to formulate a medical-grade care plan.',
+      iconName: 'Search',
+      features: ['Digital Skin Scan', 'Practitioner Consultation', 'Ingredient Audit', 'Custom Protocol'],
+    },
+  ],
+
+  whyUsItems: [
+    { title: 'Doctor-Supervised Practice', description: 'Every aesthetic protocol is overseen by licensed medical dermatologists for safety and efficacy.' },
+    { title: 'FDA-Cleared Technology', description: 'We invest exclusively in gold-standard, clinical-grade laser and infusion equipment.' },
+    { title: 'Bespoke Patient Protocols', description: 'No cookie-cutter routines—every treatment plan is customized for your individual skin barrier.' },
+  ],
+
+  trustBadges: [
+    { title: 'Licensed Practitioners', subtitle: 'Board-Certified Aesthetics', icon: 'Award' },
+    { title: 'Medical-Grade Standards', subtitle: 'Hospital-Level Sterilization', icon: 'ShieldCheck' },
+    { title: 'FDA-Cleared Devices', subtitle: 'Proven Clinical Outcomes', icon: 'Sparkles' },
+  ],
+
+  faqs: [
+    {
+      question: 'Is there downtime after a HydraFacial or Peel?',
+      answer: 'HydraFacials have zero downtime—you leave with instant radiance. Clinical peels may produce mild flaking for 2 to 4 days, which is easily managed with our post-procedure barrier balm.',
+    },
+    {
+      question: 'How do I know which aesthetic treatment is right for me?',
+      answer: 'We recommend booking a Comprehensive Skin Analysis first. Our practitioners examine your skin beneath specialized imaging to tailor the ideal treatment pathway.',
+    },
+    {
+      question: 'Are your treatments safe for sensitive or acne-prone skin?',
+      answer: 'Yes. Our clinical formulations are carefully selected to calm reactive barriers, reduce inflammation, and accelerate healing.',
+    },
+  ],
+
+  testimonials: [
+    {
+      id: 'test-skin-1',
+      author: 'Sophia Chen',
+      location: 'Austin, TX',
+      service: 'HydraFacial Deluxe',
+      rating: 5,
+      comment: 'My skin has never felt clearer or more radiant. The staff took the time to explain every step and recommended products that transformed my barrier.',
+      verified: true,
+      date: '2026-09-12',
+    },
+    {
+      id: 'test-skin-2',
+      author: 'Claire Morales',
+      location: 'Westlake, TX',
+      service: 'Pigment Correction Peel',
+      rating: 5,
+      comment: 'Noticeable reduction in sun spots within two sessions. Extremely professional medical setting and zero discomfort.',
+      verified: true,
+      date: '2026-10-04',
+    },
+  ],
+
+  stats: [
+    { label: 'Patient Procedures', value: '3,200+', sublabel: 'Clinical Treatments' },
+    { label: 'Patient Satisfaction', value: '99%', sublabel: 'Post-Care Survey' },
+    { label: 'Google Rating', value: '4.9 ★', sublabel: 'Over 240+ Reviews' },
+    { label: 'Clinical Experience', value: '12+ Yrs', sublabel: 'Combined Medical Team' },
+  ],
+
+  beforeAfter: [],
+  heroTrustBadgesEnabled: true,
+  footerEmergencyEnabled: false,
+  sampleDataNoticeEnabled: true,
+  financingEnabled: false,
+  hasEmergencyService: false,
+};
+
+/**
+ * Example Preset 2: General Local Service Business (Example with placeholder details)
+ * Isolated from Tarot and HVAC; formEndpoint left unconfigured.
+ */
+export const DEMO_LOCAL_SERVICE_CONFIG: ClientConfig = {
+  clientId: 'demo-local-service',
+  leadSource: 'Google Search / Local Business Profile [Example]',
+  googleBusinessProfileUrl: 'https://example.com/gbp-local-service',
+  businessPhone: '+1 (555) 018-7744 [Placeholder]',
+  serviceArea: 'Denver Metro & Front Range [Placeholder]',
+
+  industry: 'Home Maintenance & Repair',
+  businessName: 'PrimePoint Local Home Services [Example]',
+  websiteUrl: 'https://example.com/primepoint-services',
+  tagline: 'Reliable Local Home Maintenance & System Diagnostics',
+  footerDescription: 'Licensed, bonded home service specialists providing upfront pricing and dependable workmanship.',
+  heroTitle: 'Prompt, Reliable Home Maintenance & Repairs',
+  heroSubheadline: 'Certified local technicians providing upfront pricing, fast arrival windows, and guaranteed workmanship on every home project.',
+  heroStatusText: 'Technicians On Duty • Same-Day Service Available',
+  heroSecondaryCtaText: 'Explore Service Options',
+  leadFormStatusText: 'FAST RESPONSE DISPATCH',
+  leadFormTrustText: '🔒 Guaranteed upfront quote before any work begins.',
+  finalCtaHeading: 'Schedule Your Home Service Visit',
+  finalCtaDescription: 'Tell us what needs attention and our dispatch team will confirm your preferred service window.',
+  finalCtaButtonText: 'Book Service Call',
+  servicesEyebrow: 'WHAT WE DO',
+  servicesHeading: 'Dependable Residential Services',
+  servicesDescription: 'From urgent troubleshooting to scheduled preventative maintenance, we keep your home running smoothly.',
+  whyUsHeading: 'Why Local Homeowners Trust PrimePoint',
+  serviceAreaHeading: 'Serving Denver Metro Communities',
+  serviceAreaDescription: 'Local service vehicles stationed across the metro area for rapid dispatch and on-time arrivals.',
+  yearsInBusiness: 8,
+  jobsCompleted: '5,400+',
+  averageRating: 4.8,
+  reviewCount: 310,
+
+  phone: '+1 (555) 018-7744 [Placeholder]',
+  phoneRaw: '+15550187744',
+  email: 'service@primepoint-example.com [Placeholder]',
+  address: '1204 Commerce Way [Placeholder]',
+  cityStateZip: 'Denver, CO 80202 [Placeholder]',
+  businessHours: 'Mon-Sat: 7:30 AM - 6:30 PM',
+  emergencyAvailability: '24/7 Emergency Dispatch Available',
+  whatsAppNumber: '+15550187744',
+  defaultCountryCode: '+1',
+  whatsAppMessageTemplate: 'Hi {name}, thank you for reaching out to {businessName} regarding your request for {service}. When is the best time for our technician to inspect?',
+
+  primaryColor: '#0F172A', // Slate dark navy
+  accentColor: '#0284C7',  // Vibrant sky blue
+  fontFamily: 'Inter, sans-serif',
+  logoUrl: '',
+  heroImageUrl: 'https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=1200&auto=format&fit=crop&q=80',
+  aboutImageUrl: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&auto=format&fit=crop&q=80',
+
+  googleMapsLink: 'https://maps.google.com/?q=Denver,CO',
+  googleMapsEmbedUrl: '',
+  googleReviewLink: '',
+  googleBusinessProfileLink: '',
+  formEndpoint: '', // Unconfigured placeholder: does not connect to any client's Google Sheet
+  googleAnalyticsId: '',
+  facebookPixelId: '',
+  googleTagManagerId: '',
+
+  socialLinks: {},
+
+  seo: {
+    title: 'PrimePoint Local Home Services | Denver Maintenance & Repairs',
+    metaDescription: 'Trusted residential home maintenance, diagnostics, and repairs with guaranteed flat-rate pricing in Denver, CO.',
+    keywords: ['Home maintenance', 'Local home repair', 'Denver home service', 'Handyman Denver', 'Upfront pricing'],
+    ogImageUrl: 'https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=1200&auto=format&fit=crop&q=80',
+    canonicalUrl: '',
+  },
+
+  serviceAreas: ['Downtown Denver', 'Cherry Creek', 'Lakewood', 'Aurora', 'Highlands Ranch', 'Centennial', 'Arvada'],
+
+  services: [
+    {
+      id: 'diagnostic-inspection',
+      title: 'Full System Diagnostic & Safety Inspection',
+      tagline: 'Accurate problem identification',
+      description: 'Comprehensive mechanical, electrical, or structural inspection with a written checklist and flat-rate repair plan.',
+      iconName: 'Search',
+      features: ['Multi-Point Inspection', 'Written Diagnostic Report', 'No-Pressure Recommendations', 'Guaranteed Pricing'],
+      popular: true,
+    },
+    {
+      id: 'emergency-repairs',
+      title: 'Priority Home Repair & Troubleshooting',
+      tagline: 'Rapid problem resolution',
+      description: 'Fast dispatch for urgent residential issues including leaks, electrical faults, and fixture malfunctions.',
+      iconName: 'Clock',
+      features: ['Same-Day Scheduling', 'Fully Stocked Vans', 'Clean Workspace Promise', '1-Year Parts Warranty'],
+    },
+    {
+      id: 'seasonal-tuneup',
+      title: 'Preventative Maintenance & Seasonal Tune-Up',
+      tagline: 'Extend home equipment life',
+      description: 'Scheduled multi-point servicing to prevent costly unexpected failures and improve energy efficiency.',
+      iconName: 'CheckCircle',
+      features: ['Filter & Seal Check', 'Mechanical Lubrication', 'Performance Testing', 'Safety Compliance Audit'],
+    },
+    {
+      id: 'fixture-installation',
+      title: 'Fixture & Hardware Installation',
+      tagline: 'Flawless upgrade execution',
+      description: 'Professional replacement and secure mounting of residential fixtures, smart equipment, and utility connections.',
+      iconName: 'Tool',
+      features: ['Clean Code Compliance', 'Disposal of Old Hardware', 'Operational Demonstration', 'Workmanship Guarantee'],
+    },
+  ],
+
+  whyUsItems: [
+    { title: 'Guaranteed Flat-Rate Quotes', description: 'Written estimates provided before any tool is lifted. No surprise fees.' },
+    { title: 'Background-Checked Technicians', description: 'Experienced, polite specialists who treat your residence with respect.' },
+    { title: '1-Year Warranty on Work', description: 'We stand behind our craftsmanship with an ironclad 365-day satisfaction guarantee.' },
+  ],
+
+  trustBadges: [
+    { title: 'Licensed & Insured', subtitle: 'Full Liability Coverage', icon: 'ShieldCheck' },
+    { title: 'Upfront Flat Rates', subtitle: 'Zero Hidden Surcharges', icon: 'DollarSign' },
+    { title: '1-Year Workmanship', subtitle: 'Guaranteed Repairs', icon: 'Award' },
+  ],
+
+  faqs: [
+    {
+      question: 'Do you charge a diagnostic or service call fee?',
+      answer: 'Our transparent diagnostic fee covers the technician dispatch and thorough multi-point inspection. If you proceed with the recommended repair, that fee is credited directly toward your service.',
+    },
+    {
+      question: 'How quickly can a technician arrive at my home?',
+      answer: 'We offer flexible 2-hour arrival windows with 30-minute advance courtesy calls. Priority same-day visits are available for urgent repairs.',
+    },
+    {
+      question: 'Are all your technicians licensed and insured?',
+      answer: 'Yes, every technician on our team is fully licensed, insured, and background-vetted for your total peace of mind.',
+    },
+  ],
+
+  testimonials: [
+    {
+      id: 'test-local-1',
+      author: 'David Kowalski',
+      location: 'Denver, CO',
+      service: 'Diagnostic Inspection',
+      rating: 5,
+      comment: 'Tech arrived right on time, explained exactly what was causing our issue, and fixed it within an hour. Upfront price was exactly what we paid.',
+      verified: true,
+      date: '2026-08-20',
+    },
+    {
+      id: 'test-local-2',
+      author: 'Amanda Sterling',
+      location: 'Lakewood, CO',
+      service: 'Fixture Installation',
+      rating: 5,
+      comment: 'Very professional, clean, and knowledgeable. PrimePoint is our go-to home maintenance team now.',
+      verified: true,
+      date: '2026-09-15',
+    },
+  ],
+
+  stats: [
+    { label: 'Completed Jobs', value: '5,400+', sublabel: 'Across Front Range' },
+    { label: 'On-Time Arrival', value: '98%', sublabel: 'With Courtesy Call' },
+    { label: 'Average Rating', value: '4.8 ★', sublabel: '310+ Verified Reviews' },
+    { label: 'Warranty Duration', value: '1 Full Year', sublabel: 'Parts & Workmanship' },
+  ],
+
+  beforeAfter: [],
+  heroTrustBadgesEnabled: true,
+  footerEmergencyEnabled: true,
+  sampleDataNoticeEnabled: true,
+  financingEnabled: false,
+  hasEmergencyService: true,
+};
+
 export const CLIENT_PRESETS: Record<string, ClientConfig> = {
   'demo-tarot-kochi': DEMO_CLIENT_CONFIG,
   'demo-tarot': DEMO_CLIENT_CONFIG,
   'client-apex-hvac': APEX_HVAC_CLIENT_CONFIG,
   'demo-hvac': APEX_HVAC_CLIENT_CONFIG,
+  'demo-skin-clinic': DEMO_SKIN_CLINIC_CONFIG,
+  'demo-local-service': DEMO_LOCAL_SERVICE_CONFIG,
 };
+
 

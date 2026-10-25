@@ -11,7 +11,7 @@ import {
   orderBy,
   writeBatch,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 
 const STORAGE_KEY_PREFIX = 'leadpilot_leads_';
 
@@ -250,6 +250,9 @@ export async function fetchFirestoreLeads(tenantId: string): Promise<LeadItem[]>
         ...data,
         id: docSnap.id,
         clientId: cleanTenant,
+        notes: Array.isArray(data.notes) ? data.notes : [],
+        contactCount: typeof data.contactCount === 'number' ? data.contactCount : 0,
+        contactLogs: Array.isArray(data.contactLogs) ? data.contactLogs : [],
       });
     });
 
@@ -287,7 +290,14 @@ export function subscribeTenantLeads(
       const leads: LeadItem[] = [];
       snapshot.forEach((docSnap) => {
         const item = docSnap.data() as LeadItem;
-        leads.push({ ...item, id: docSnap.id, clientId: cleanTenant });
+        leads.push({
+          ...item,
+          id: docSnap.id,
+          clientId: cleanTenant,
+          notes: Array.isArray(item.notes) ? item.notes : [],
+          contactCount: typeof item.contactCount === 'number' ? item.contactCount : 0,
+          contactLogs: Array.isArray(item.contactLogs) ? item.contactLogs : [],
+        });
       });
       saveAllLeads(leads, cleanTenant);
       onUpdate(leads);
@@ -301,19 +311,21 @@ export function subscribeTenantLeads(
 }
 
 /**
- * Helper to generate a sequential Lead ID (e.g., LP-20260809-0001)
+ * Helper to generate a unique Lead ID (e.g., LP-20261022-0001-K9X2)
  */
 export function generateLeadId(existingCount: number = 0): string {
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
   const existingLeads = getStoredLeads();
+  const randomEntropy = Math.random().toString(36).substring(2, 6).toUpperCase();
 
   let num = existingCount + 1;
-  let candidate = `LP-${dateStr}-${String(num).padStart(4, '0')}`;
+  let candidate = `LP-${dateStr}-${String(num).padStart(4, '0')}-${randomEntropy}`;
 
   while (existingLeads.some((l) => l.id === candidate)) {
     num++;
-    candidate = `LP-${dateStr}-${String(num).padStart(4, '0')}`;
+    const nextEntropy = Math.random().toString(36).substring(2, 6).toUpperCase();
+    candidate = `LP-${dateStr}-${String(num).padStart(4, '0')}-${nextEntropy}`;
   }
 
   return candidate;
@@ -373,7 +385,7 @@ export async function saveLead(
       service: input.service.trim(),
       details: input.details || 'No additional details provided.',
       address: input.address || '',
-      leadSource: input.leadSource || 'Google Business Profile / Local Search',
+      leadSource: input.leadSource || 'Landing Page Enquiry (Website)',
       pageUrl: input.pageUrl || '',
       status: (input.status as LeadStatus) || 'New',
       notes: input.notes || [],
@@ -390,11 +402,36 @@ export async function saveLead(
   saveAllLeads(leads, targetTenant);
 
   // 2. Persist to Firestore: /tenants/{tenantId}/leads/{leadId}
+  let firestoreErrDetail: string | null = null;
   try {
     const leadDocRef = doc(db, 'tenants', targetTenant, 'leads', targetLead.id);
-    await setDoc(leadDocRef, cleanForFirestore(targetLead), { merge: true });
-  } catch (firestoreErr) {
-    console.warn('Note: Could not persist lead to Firestore directly:', firestoreErr);
+    
+    // Decouple public landing submissions from CRM internal audit fields:
+    // If submission is unauthenticated (anonymous public visitor), write ONLY the approved 13 public fields.
+    // Internal CRM fields (notes, contactCount, contactLogs) are excluded from the public Firestore write
+    // so rules strictly reject unauthorized fields while keeping Google Sheets sync completely intact.
+    const firestorePayload = auth.currentUser
+      ? cleanForFirestore(targetLead)
+      : cleanForFirestore({
+          id: targetLead.id,
+          timestamp: targetLead.timestamp,
+          clientId: targetLead.clientId,
+          businessName: targetLead.businessName,
+          name: targetLead.name,
+          phone: targetLead.phone,
+          email: targetLead.email,
+          service: targetLead.service,
+          details: targetLead.details,
+          address: targetLead.address,
+          leadSource: targetLead.leadSource,
+          pageUrl: targetLead.pageUrl,
+          status: targetLead.status, // Strictly 'New'
+        });
+
+    await setDoc(leadDocRef, firestorePayload, { merge: true });
+  } catch (firestoreErr: any) {
+    console.error('Error persisting lead to Firestore:', firestoreErr);
+    firestoreErrDetail = firestoreErr?.message || 'Database permission or connection error';
   }
 
   // 3. Optional Google Sheet webhook sync if configured
@@ -420,6 +457,15 @@ export async function saveLead(
         lead: targetLead,
       };
     }
+  }
+
+  // If Firestore write failed, report real error rather than pretending CRM saved the lead
+  if (firestoreErrDetail) {
+    return {
+      success: false,
+      message: `Enquiry logged to Google Sheet, but CRM database write failed: ${firestoreErrDetail}.`,
+      lead: targetLead,
+    };
   }
 
   return { success: true, message: `Lead saved to CRM${syncMessage}.`, lead: targetLead };
@@ -681,18 +727,23 @@ export async function deleteLead(
   const leads = getStoredLeads(cleanTenant);
   const targetLead = leads.find((l) => l.id === leadId);
 
-  const filtered = leads.filter((l) => l.id !== leadId);
-  saveAllLeads(filtered, cleanTenant);
-
-  // Firestore delete attempt (with offline/permission safe fallback)
+  // 1. Enforce backend deletion FIRST to respect role-based access rules (Owners/Admins only)
   try {
     const leadRef = doc(db, 'tenants', cleanTenant, 'leads', leadId);
     await deleteDoc(leadRef);
-  } catch (err) {
-    console.warn('Firestore deleteLead notice (local deletion preserved):', err);
+  } catch (err: any) {
+    console.error('Firestore deleteLead error:', err);
+    return {
+      success: false,
+      message: `Failed to delete lead from database: ${err?.message || 'Permission denied. Only Tenant Owners can delete leads.'}`,
+    };
   }
 
-  // Synchronize deletion with Google Sheets Web App if endpoint is configured
+  // 2. Update local cache ONLY after successful database deletion
+  const filtered = leads.filter((l) => l.id !== leadId);
+  saveAllLeads(filtered, cleanTenant);
+
+  // 3. Synchronize deletion with Google Sheets only if database deletion succeeded
   if (endpointUrl && endpointUrl.startsWith('http')) {
     try {
       await syncLeadActionToRemote(endpointUrl, {

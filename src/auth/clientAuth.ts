@@ -61,6 +61,14 @@ export const TENANT_METADATA_MAP: Record<string, { businessName: string; industr
     businessName: 'Vanguard Realty Group',
     industry: 'real-estate',
   },
+  'demo-skin-clinic': {
+    businessName: 'GlowAura Skin & Aesthetic Clinic [Example]',
+    industry: 'skincare',
+  },
+  'demo-local-service': {
+    businessName: 'PrimePoint Local Home Services [Example]',
+    industry: 'home-services',
+  },
 };
 
 /**
@@ -85,39 +93,34 @@ export function inferTenantFromEmail(email: string): string {
  */
 export async function getOrProvisionUserProfile(user: FirebaseUser, desiredTenantId?: string): Promise<ClientUser> {
   const userRef = doc(db, 'users', user.uid);
-  let tenantId = desiredTenantId || inferTenantFromEmail(user.email || '');
-  let businessName = TENANT_METADATA_MAP[tenantId]?.businessName || 'Business Client Portal';
+  let tenantId = desiredTenantId || '';
+  let businessName = 'Business Client Portal';
   let role: 'client_admin' | 'client_staff' = 'client_admin';
 
   try {
     const snap = await getDoc(userRef);
     if (snap.exists()) {
+      // Existing user: load securely provisioned tenant assignment and role from profile
       const data = snap.data();
-      tenantId = data.tenantId || tenantId;
+      tenantId = data.tenantId || '';
       role = data.role === 'staff' ? 'client_staff' : 'client_admin';
-      businessName = TENANT_METADATA_MAP[tenantId]?.businessName || data.businessName || businessName;
+      businessName = data.businessName || TENANT_METADATA_MAP[tenantId]?.businessName || businessName;
+      // Note: No redundant background writes to /members or /tenants during existing user sessions
     } else {
-      // First time sign-in: write initial user record & tenant membership
+      // First-time sign-in: write initial baseline profile conforming to zero-trust rules
+      // (Non-admin users cannot self-assign privileged roles or arbitrary tenant IDs)
       const newUserData = {
         uid: user.uid,
         email: user.email || '',
         displayName: user.displayName || user.email?.split('@')[0] || 'Client User',
-        tenantId,
-        businessName,
-        role: 'owner', // In Firestore rules: owner / staff
+        tenantId: '',
+        businessName: 'Unassigned Client Portal',
+        role: 'unassigned',
         createdAt: new Date().toISOString(),
       };
 
       try {
         await setDoc(userRef, newUserData);
-        // Also register under tenant members subcollection for Master Gate validation
-        const memberRef = doc(db, 'tenants', tenantId, 'members', user.uid);
-        await setDoc(memberRef, {
-          uid: user.uid,
-          email: user.email || '',
-          role: 'owner',
-          addedAt: new Date().toISOString(),
-        });
       } catch (writeErr) {
         console.warn('Note: Could not create user profile document:', writeErr);
       }
@@ -261,8 +264,8 @@ export async function loginWithGoogle(
 export async function registerClient(
   email: string,
   password: string,
-  tenantId: string,
-  businessName: string
+  _tenantId?: string,
+  _businessName?: string
 ): Promise<{ success: boolean; user?: ClientUser; error?: string }> {
   const cleanEmail = email.trim().toLowerCase();
   const cleanPass = password.trim();
@@ -273,37 +276,16 @@ export async function registerClient(
 
   try {
     const cred = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPass);
-    const userRef = doc(db, 'users', cred.user.uid);
-    await setDoc(userRef, {
-      uid: cred.user.uid,
-      email: cleanEmail,
-      displayName: businessName,
-      tenantId: tenantId.trim().toLowerCase(),
-      businessName,
-      role: 'owner',
-      createdAt: new Date().toISOString(),
-    });
-
-    const memberRef = doc(db, 'tenants', tenantId, 'members', cred.user.uid);
-    await setDoc(memberRef, {
-      uid: cred.user.uid,
-      email: cleanEmail,
-      role: 'owner',
-      addedAt: new Date().toISOString(),
-    });
-
-    const clientUser: ClientUser = {
-      userId: cred.user.uid,
-      email: cleanEmail,
-      clientId: tenantId,
-      businessName,
-      role: 'client_admin',
-      createdAt: new Date().toISOString(),
-    };
-
+    // Secure bootstrap: Creates initial user profile with role: 'unassigned' and tenantId: ''
+    // Conforms strictly to zero-trust Firestore rules (non-admins cannot self-assign owner roles or tenant IDs)
+    const clientUser = await getOrProvisionUserProfile(cred.user);
     activeSessionUser = clientUser;
     window.dispatchEvent(new Event('leadpilot_auth_changed'));
-    return { success: true, user: clientUser };
+    return {
+      success: true,
+      user: clientUser,
+      error: 'Account registered. Tenant assignment and owner activation must be provisioned by the platform administrator.',
+    };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Registration failed.' };
   }

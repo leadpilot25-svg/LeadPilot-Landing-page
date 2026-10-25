@@ -1,14 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { INDUSTRY_PRESETS } from './presets/industryPresets';
-import { CLIENT_PRESETS, DEMO_CLIENT_CONFIG, APEX_HVAC_CLIENT_CONFIG } from './presets/clientPresets';
+import { CLIENT_PRESETS, DEMO_CLIENT_CONFIG } from './presets/clientPresets';
 import { ClientConfig } from './types';
 import { HeaderBar } from './components/HeaderBar';
-import { ConfigEditorDrawer } from './components/ConfigEditorDrawer';
 import { LiveWebsitePreview } from './components/LiveWebsitePreview';
-import { LeadPilotDashboard } from './components/LeadPilotDashboard';
-import { CodeExporterModal } from './components/CodeExporterModal';
 import { StandaloneLanding } from './components/StandaloneLanding';
-import { StandaloneCrm } from './components/StandaloneCrm';
 import {
   getAppTarget,
   AppTarget,
@@ -16,62 +12,25 @@ import {
   IS_CRM_DEPLOYMENT,
   CLIENT_ID_ENV,
 } from './config/appTarget';
+import {
+  INITIAL_CLIENT_CONFIGS,
+  getClientConfigForEnvClientId,
+} from './config/clientConfigResolver';
 import { ArrowLeft, Monitor, Smartphone, ShieldCheck, Sparkles } from 'lucide-react';
 
-const INITIAL_CLIENT_CONFIGS: Record<string, ClientConfig> = {
-  'demo-tarot-kochi': JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
-  'demo-tarot': JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
-  'client-apex-hvac': JSON.parse(JSON.stringify(APEX_HVAC_CLIENT_CONFIG)),
-  'demo-hvac': JSON.parse(JSON.stringify(APEX_HVAC_CLIENT_CONFIG)),
-  'demo-plumbing': {
-    ...JSON.parse(JSON.stringify(INDUSTRY_PRESETS['plumbing'])),
-    clientId: 'client-prodrain-plumbing',
-    businessName: 'ProDrain Plumbing Services',
-    cityStateZip: 'Dallas, TX',
-    serviceArea: 'Dallas & Fort Worth Metro',
-    phone: '+1 (555) 389-1122',
-    email: 'info@prodrainplumbing-demo.com',
-  },
-};
+const StandaloneCrm = lazy(() =>
+  import('./components/StandaloneCrm').then((m) => ({ default: m.StandaloneCrm }))
+);
+const LeadPilotDashboard = lazy(() =>
+  import('./components/LeadPilotDashboard').then((m) => ({ default: m.LeadPilotDashboard }))
+);
+const ConfigEditorDrawer = lazy(() =>
+  import('./components/ConfigEditorDrawer').then((m) => ({ default: m.ConfigEditorDrawer }))
+);
+const CodeExporterModal = lazy(() =>
+  import('./components/CodeExporterModal').then((m) => ({ default: m.CodeExporterModal }))
+);
 
-function getClientConfigForEnvClientId(envClientId: string): { key: string; config: ClientConfig } {
-  if (!envClientId) {
-    return { key: 'demo-tarot-kochi', config: JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)) };
-  }
-
-  // 1. Direct match on key in CLIENT_PRESETS or INITIAL_CLIENT_CONFIGS
-  if (CLIENT_PRESETS[envClientId]) {
-    return { key: envClientId, config: JSON.parse(JSON.stringify(CLIENT_PRESETS[envClientId])) };
-  }
-  if (INITIAL_CLIENT_CONFIGS[envClientId]) {
-    return { key: envClientId, config: JSON.parse(JSON.stringify(INITIAL_CLIENT_CONFIGS[envClientId])) };
-  }
-
-  // 2. Match on clientId property across all preset sources
-  for (const [key, cfg] of Object.entries(CLIENT_PRESETS)) {
-    if (cfg.clientId === envClientId) {
-      return { key, config: JSON.parse(JSON.stringify(cfg)) };
-    }
-  }
-  for (const [key, cfg] of Object.entries(INITIAL_CLIENT_CONFIGS)) {
-    if (cfg.clientId === envClientId) {
-      return { key, config: JSON.parse(JSON.stringify(cfg)) };
-    }
-  }
-  for (const [key, cfg] of Object.entries(INDUSTRY_PRESETS)) {
-    if (cfg.clientId === envClientId) {
-      return { key: `client-${key}`, config: JSON.parse(JSON.stringify(cfg)) };
-    }
-  }
-
-  // 3. Fallback: clone DEMO_CLIENT_CONFIG with requested envClientId
-  const customConfig: ClientConfig = {
-    ...JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
-    clientId: envClientId,
-    businessName: envClientId.replace(/[-_]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
-  };
-  return { key: envClientId, config: customConfig };
-}
 
 export default function App() {
   const [activeTarget, setActiveTarget] = useState<AppTarget>(() => getAppTarget());
@@ -243,7 +202,9 @@ export default function App() {
   if (IS_CRM_DEPLOYMENT || activeTarget === 'crm') {
     return (
       <div className="relative">
-        <StandaloneCrm defaultClientId={currentConfig.clientId} initialConfig={currentConfig} />
+        <Suspense fallback={<div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Loading LeadPilot CRM...</div>}>
+          <StandaloneCrm defaultClientId={currentConfig.clientId} initialConfig={currentConfig} />
+        </Suspense>
 
         {/* Floating return badge only if previewed inside Dev Environment */}
         {!IS_CRM_DEPLOYMENT && (
@@ -293,26 +254,30 @@ export default function App() {
 
       {/* Main Mode Area */}
       <main className="flex-1">
-        {viewMode === 'preview' ? (
-          <LiveWebsitePreview config={currentConfig} appMode={appMode} />
-        ) : viewMode === 'leadpilot' ? (
-          <LeadPilotDashboard currentConfig={currentConfig} appMode={appMode} />
-        ) : (
-          <CodeExporterModal
-            config={currentConfig}
-            onClose={() => setViewMode('preview')}
-          />
-        )}
+        <Suspense fallback={<div className="p-12 text-center text-slate-400">Loading view...</div>}>
+          {viewMode === 'preview' ? (
+            <LiveWebsitePreview config={currentConfig} appMode={appMode} />
+          ) : viewMode === 'leadpilot' ? (
+            <LeadPilotDashboard currentConfig={currentConfig} appMode={appMode} />
+          ) : (
+            <CodeExporterModal
+              config={currentConfig}
+              onClose={() => setViewMode('preview')}
+            />
+          )}
+        </Suspense>
       </main>
 
       {/* Config Drawer Editor */}
-      <ConfigEditorDrawer
-        isOpen={isEditorOpen && appMode === 'development'}
-        onClose={() => setIsEditorOpen(false)}
-        config={currentConfig}
-        onChangeConfig={handleUpdateConfig}
-        onResetPreset={handleResetPreset}
-      />
+      <Suspense fallback={null}>
+        <ConfigEditorDrawer
+          isOpen={isEditorOpen && appMode === 'development'}
+          onClose={() => setIsEditorOpen(false)}
+          config={currentConfig}
+          onChangeConfig={handleUpdateConfig}
+          onResetPreset={handleResetPreset}
+        />
+      </Suspense>
     </div>
   );
 }

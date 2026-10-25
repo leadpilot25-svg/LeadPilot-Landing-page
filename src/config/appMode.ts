@@ -12,6 +12,6 @@ export const CLIENT_ID_ENV: string = ((import.meta as any).env?.VITE_CLIENT_ID |
 
 export const IS_CLIENT_DEPLOYMENT =
   ((import.meta as any).env?.VITE_APP_MODE === 'client') ||
-  (typeof window !== 'undefined' && window.location.search.includes('mode=client'));
+  (Boolean(import.meta.env.DEV) && typeof window !== 'undefined' && window.location.search.includes('mode=client'));
 
 export const DEPLOYMENT_APP_MODE: 'development' | 'client' = IS_CLIENT_DEPLOYMENT ? 'client' : 'development';

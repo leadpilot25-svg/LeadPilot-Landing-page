@@ -19,26 +19,21 @@
 export type AppTarget = 'landing' | 'crm' | 'dev';
 
 export function getAppTarget(): AppTarget {
-  // 1. Explicit Vite Environment Variable
+  const isProd = Boolean(import.meta.env.PROD);
+
+  // 1. Explicit Vite Environment Variable (Highest precedence, embedded at build time)
   const envTarget = (import.meta as any).env?.VITE_APP_TARGET?.toString().trim().toLowerCase();
   if (envTarget === 'landing') return 'landing';
   if (envTarget === 'crm') return 'crm';
-  if (envTarget === 'dev') return 'dev';
+  if (envTarget === 'dev' && !isProd) return 'dev';
 
-  // Fallback for legacy VITE_APP_MODE="client"
+  // Fallback for legacy VITE_APP_MODE
   const envMode = (import.meta as any).env?.VITE_APP_MODE?.toString().trim().toLowerCase();
   if (envMode === 'landing') return 'landing';
   if (envMode === 'crm') return 'crm';
 
-  // 2. URL Query Parameter (?target=landing | ?mode=landing | ?target=crm | ?mode=crm | ?target=dev)
+  // 2. URL Pathname (/crm, /portal -> 'crm', /landing -> 'landing')
   if (typeof window !== 'undefined') {
-    const params = new URLSearchParams(window.location.search);
-    const targetParam = (params.get('target') || params.get('mode'))?.toLowerCase();
-    if (targetParam === 'landing' || targetParam === 'crm' || targetParam === 'dev') {
-      return targetParam as AppTarget;
-    }
-
-    // 3. URL Pathname (/crm, /portal, /landing)
     const path = window.location.pathname.toLowerCase();
     if (path.startsWith('/crm') || path.startsWith('/portal')) {
       return 'crm';
@@ -48,7 +43,22 @@ export function getAppTarget(): AppTarget {
     }
   }
 
-  // Default to internal dev mode
+  // 3. Security Lockdown: In production builds, DEV mode is strictly forbidden.
+  // URL query parameters (?target=dev or ?mode=dev) are completely ignored in production builds.
+  if (isProd) {
+    return 'landing';
+  }
+
+  // 4. Local Development only: Allow query parameter testing (?target=landing | ?target=crm | ?target=dev)
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const targetParam = (params.get('target') || params.get('mode'))?.toLowerCase();
+    if (targetParam === 'landing' || targetParam === 'crm' || targetParam === 'dev') {
+      return targetParam as AppTarget;
+    }
+  }
+
+  // Default to internal dev suite locally
   return 'dev';
 }
 
