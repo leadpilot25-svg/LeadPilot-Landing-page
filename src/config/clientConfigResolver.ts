@@ -26,41 +26,56 @@ export const INITIAL_CLIENT_CONFIGS: Record<string, ClientConfig> = {
   },
 };
 
-export function getClientConfigForEnvClientId(envClientId: string): { key: string; config: ClientConfig } {
-  if (!envClientId) {
-    return { key: 'demo-tarot-kochi', config: JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)) };
+export function getClientConfigForEnvClientId(
+  envClientId?: string,
+  allowDefaultIfEmpty = true
+): { key: string; config: ClientConfig | null; isValid: boolean } {
+  const cleanId = (envClientId || '').trim().toLowerCase();
+
+  if (!cleanId) {
+    if (allowDefaultIfEmpty) {
+      return {
+        key: 'demo-tarot-kochi',
+        config: JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
+        isValid: true,
+      };
+    }
+    return { key: '', config: null, isValid: false };
   }
 
   // 1. Direct match on key in CLIENT_PRESETS or INITIAL_CLIENT_CONFIGS
-  if (CLIENT_PRESETS[envClientId]) {
-    return { key: envClientId, config: JSON.parse(JSON.stringify(CLIENT_PRESETS[envClientId])) };
+  if (CLIENT_PRESETS[cleanId]) {
+    return {
+      key: cleanId,
+      config: JSON.parse(JSON.stringify(CLIENT_PRESETS[cleanId])),
+      isValid: true,
+    };
   }
-  if (INITIAL_CLIENT_CONFIGS[envClientId]) {
-    return { key: envClientId, config: JSON.parse(JSON.stringify(INITIAL_CLIENT_CONFIGS[envClientId])) };
+  if (INITIAL_CLIENT_CONFIGS[cleanId]) {
+    return {
+      key: cleanId,
+      config: JSON.parse(JSON.stringify(INITIAL_CLIENT_CONFIGS[cleanId])),
+      isValid: true,
+    };
   }
 
   // 2. Match on clientId property across all preset sources
   for (const [key, cfg] of Object.entries(CLIENT_PRESETS)) {
-    if (cfg.clientId === envClientId) {
-      return { key, config: JSON.parse(JSON.stringify(cfg)) };
+    if (cfg.clientId.toLowerCase() === cleanId) {
+      return { key, config: JSON.parse(JSON.stringify(cfg)), isValid: true };
     }
   }
   for (const [key, cfg] of Object.entries(INITIAL_CLIENT_CONFIGS)) {
-    if (cfg.clientId === envClientId) {
-      return { key, config: JSON.parse(JSON.stringify(cfg)) };
+    if (cfg.clientId.toLowerCase() === cleanId) {
+      return { key, config: JSON.parse(JSON.stringify(cfg)), isValid: true };
     }
   }
   for (const [key, cfg] of Object.entries(INDUSTRY_PRESETS)) {
-    if (cfg.clientId === envClientId) {
-      return { key: `client-${key}`, config: JSON.parse(JSON.stringify(cfg)) };
+    if (cfg.clientId.toLowerCase() === cleanId) {
+      return { key: `client-${key}`, config: JSON.parse(JSON.stringify(cfg)), isValid: true };
     }
   }
 
-  // 3. Fallback: clone DEMO_CLIENT_CONFIG with requested envClientId
-  const customConfig: ClientConfig = {
-    ...JSON.parse(JSON.stringify(DEMO_CLIENT_CONFIG)),
-    clientId: envClientId,
-    businessName: envClientId.replace(/[-_]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
-  };
-  return { key: envClientId, config: customConfig };
+  // 3. Strict rejection: Unknown client IDs MUST NOT fall back to Tarot
+  return { key: cleanId, config: null, isValid: false };
 }

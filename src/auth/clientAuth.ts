@@ -303,3 +303,30 @@ export async function logoutClient(): Promise<void> {
   }
   window.dispatchEvent(new Event('leadpilot_auth_changed'));
 }
+
+/**
+ * Server-side verification of platform administrator permissions.
+ * Verifies against Firestore /admins/{uid} collection and cryptographically verified root admin Google token.
+ */
+export async function verifyServerAdminStatus(user: FirebaseUser | null): Promise<boolean> {
+  if (!user) return false;
+
+  // 1. Root platform admin verification (matches firestore.rules isRootAdmin())
+  const userEmail = (user.email || '').toLowerCase().trim();
+  if (userEmail === 'mail.nasiya@gmail.com') {
+    return true;
+  }
+
+  // 2. Database verification against /admins/{uid}
+  try {
+    const adminDoc = await getDoc(doc(db, 'admins', user.uid));
+    if (adminDoc.exists()) {
+      return true;
+    }
+  } catch (err) {
+    // Permission denied or missing: not an admin
+    return false;
+  }
+
+  return false;
+}

@@ -338,7 +338,23 @@ export async function saveLead(
   input: Partial<LeadItem> & { name: string; phone: string; service: string },
   endpointUrl?: string
 ): Promise<{ success: boolean; message: string; lead: LeadItem }> {
-  const targetTenant = (input.clientId || 'demo-tarot-kochi').trim().toLowerCase();
+  if (!input.clientId || !input.clientId.trim()) {
+    return {
+      success: false,
+      message: 'Client ID is required to submit an enquiry.',
+      lead: null as any,
+    };
+  }
+
+  const targetTenant = input.clientId.trim().toLowerCase();
+  if (!/^[a-zA-Z0-9_-]+$/.test(targetTenant)) {
+    return {
+      success: false,
+      message: 'Invalid Client ID format for enquiry submission.',
+      lead: null as any,
+    };
+  }
+
   const leads = getStoredLeads(targetTenant);
 
   let existingIndex = input.id ? leads.findIndex((l) => l.id === input.id) : -1;
@@ -936,39 +952,22 @@ export async function syncLeadActionToRemote(
       json = await res.json();
     } catch {
       return {
-        success: true,
-        message: 'Synced to Google Sheet successfully',
+        success: false,
+        message: 'Google Apps Script did not return a valid confirmation JSON. Ensure the script is deployed with access set to "Anyone".',
       };
     }
 
-    const isSuccess = json && (json.result === 'success' || json.status === 'success' || json.status === 'ok');
+    const isSuccess = Boolean(json && (json.result === 'success' || json.status === 'success' || json.status === 'ok'));
     return {
       success: isSuccess,
       result: json,
-      message: json.message || (isSuccess ? 'Synced to Google Sheet successfully' : 'Google Apps Script reported an issue'),
+      message: json?.message || (isSuccess ? 'Synced to Google Sheet successfully' : 'Google Apps Script reported an issue'),
     };
   } catch (err: any) {
-    // Google Apps Script redirects across domains (script.google.com -> script.googleusercontent.com).
-    // In restricted browser environments (cross-origin iframe or browser CORS redirect restrictions),
-    // a standard fetch might throw a CORS TypeError even though Apps Script receives the POST.
-    // Fall back to no-cors mode to ensure the POST is delivered and recorded in Google Sheets.
-    try {
-      await fetch(cleanUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: serialized,
-      });
-      return {
-        success: true,
-        message: 'Enquiry sent to Google Sheet Web App (dispatched via secure cross-origin channel).',
-      };
-    } catch (fallbackErr: any) {
-      return {
-        success: false,
-        message: err?.message || fallbackErr?.message || 'Network error syncing to Google Apps Script.',
-      };
-    }
+    return {
+      success: false,
+      message: err?.message || 'Network error connecting to Google Apps Script Web App.',
+    };
   }
 }
 

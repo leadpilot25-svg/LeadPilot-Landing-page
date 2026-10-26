@@ -7,7 +7,9 @@ import {
   logoutClient,
   ClientUser,
   onClientAuthStateChanged,
+  verifyServerAdminStatus,
 } from '../auth/clientAuth';
+import { auth } from '../firebase';
 import { LeadPilotDashboard } from './LeadPilotDashboard';
 import { Building2, LogOut, ShieldCheck, UserCheck, Lock, Mail, Key, AlertCircle, RefreshCw } from 'lucide-react';
 import { CLIENT_PRESETS, DEMO_CLIENT_CONFIG } from '../presets/clientPresets';
@@ -27,14 +29,26 @@ export const StandaloneCrm: React.FC<StandaloneCrmProps> = ({ defaultClientId = 
   const [loginError, setLoginError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
+  const [isVerifiedAdmin, setIsVerifiedAdmin] = useState(false);
+  const [adminSelectedTenant, setAdminSelectedTenant] = useState<string>('');
 
-  // Sync auth state with Firebase Auth
+  // Sync auth state with Firebase Auth and verify server admin status
   useEffect(() => {
-    const unsubscribe = onClientAuthStateChanged((user) => {
+    const unsubscribe = onClientAuthStateChanged(async (user) => {
       setCurrentUser(user);
+      if (user && auth.currentUser) {
+        const isAdmin = await verifyServerAdminStatus(auth.currentUser);
+        setIsVerifiedAdmin(isAdmin);
+        if (isAdmin) {
+          setAdminSelectedTenant((prev) => prev || user.clientId || defaultClientId);
+        }
+      } else {
+        setIsVerifiedAdmin(false);
+        setAdminSelectedTenant('');
+      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [defaultClientId]);
 
   // Safe migration of existing local records when authenticated
   useEffect(() => {
@@ -93,8 +107,11 @@ export const StandaloneCrm: React.FC<StandaloneCrmProps> = ({ defaultClientId = 
     setCurrentUser(null);
   };
 
-  // Resolve client config strictly for the authenticated client ID
-  const activeClientId = currentUser?.clientId || (IS_DEV_DEPLOYMENT ? defaultClientId : '');
+  // If the user is a server-verified administrator, allow switching tenants via adminSelectedTenant.
+  // Regular client users are strictly locked into their own tenant: currentUser.clientId
+  const activeClientId = isVerifiedAdmin && adminSelectedTenant
+    ? adminSelectedTenant
+    : (currentUser?.clientId || (IS_DEV_DEPLOYMENT ? defaultClientId : ''));
 
   const resolvedConfig: ClientConfig = React.useMemo(() => {
     if (initialConfig && initialConfig.clientId === activeClientId) {
@@ -307,12 +324,32 @@ export const StandaloneCrm: React.FC<StandaloneCrmProps> = ({ defaultClientId = 
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Lead Pipeline & Inquiries • Tenant ID: <span className="font-mono text-emerald-400">{currentUser.clientId}</span>
+                Lead Pipeline & Inquiries • Tenant ID: <span className="font-mono text-emerald-400">{activeClientId}</span>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Server-Verified Platform Administrator Tenant Selector */}
+            {isVerifiedAdmin && (
+              <div className="flex items-center gap-2 bg-slate-800/90 border border-amber-500/40 rounded-xl px-3 py-1.5 shadow-sm">
+                <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                  Admin Tenant Scope:
+                </span>
+                <select
+                  value={activeClientId}
+                  onChange={(e) => setAdminSelectedTenant(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 text-xs text-white rounded-lg px-2 py-1 focus:outline-none focus:border-amber-500 cursor-pointer"
+                >
+                  <option value="demo-tarot-kochi">Tarot Coaching & Guidance (demo-tarot-kochi)</option>
+                  <option value="client-apex-hvac">Apex Heating & Cooling (client-apex-hvac)</option>
+                  <option value="demo-plumbing">ProDrain Plumbing (demo-plumbing)</option>
+                  <option value="demo-skin-clinic">GlowAura Skin Clinic (demo-skin-clinic)</option>
+                </select>
+              </div>
+            )}
+
             <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">
               <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
               <span>{currentUser.email}</span>
